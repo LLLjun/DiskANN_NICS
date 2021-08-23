@@ -109,7 +109,7 @@ void gen_random_slice(const std::string data_file, double p_val,
   std::vector<std::vector<float>> sampled_vectors;
 
   // amount to read in one shot
-  _u64 read_blk_size = 64 * 1024 * 1024;
+  _u64 read_blk_size = 64 * 1024 * 1024;  // read block 64MB？
   // create cached reader + writer
   cached_ifstream base_reader(data_file.c_str(), read_blk_size);
 
@@ -233,15 +233,15 @@ int generate_pq_pivots(const float *passed_train_data, size_t num_train,
   }
 
   //  std::memset(centroid, 0 , dim*sizeof(float));
-
+  // 求中心，做中心标准化？
   for (uint64_t d = 0; d < dim; d++) {
     for (uint64_t p = 0; p < num_train; p++) {
       train_data[p * dim + d] -= centroid[d];
     }
   }
 
-  std::vector<uint32_t> rearrangement;
-  std::vector<uint32_t> chunk_offsets;
+  std::vector<uint32_t> rearrangement;    // Qt：没看懂有啥用
+  std::vector<uint32_t> chunk_offsets;    // 子空间和维度的偏移
 
   size_t low_val = (size_t) std::floor((double) dim / (double) num_pq_chunks);
   size_t high_val = (size_t) std::ceil((double) dim / (double) num_pq_chunks);
@@ -249,13 +249,13 @@ int generate_pq_pivots(const float *passed_train_data, size_t num_train,
   size_t cur_num_high = 0;
   size_t cur_bin_threshold = high_val;
 
-  std::vector<std::vector<uint32_t>> bin_to_dims(num_pq_chunks);
-  tsl::robin_map<uint32_t, uint32_t> dim_to_bin;
+  std::vector<std::vector<uint32_t>> bin_to_dims(num_pq_chunks);  //应该是想把空间尽可能用满
+  tsl::robin_map<uint32_t, uint32_t> dim_to_bin;    // 提供快速的插入、查找和删除操作
   std::vector<float> bin_loads(num_pq_chunks, 0);
 
   // Process dimensions not inserted by previous loop
   for (uint32_t d = 0; d < dim; d++) {
-    if (dim_to_bin.find(d) != dim_to_bin.end())
+    if (dim_to_bin.find(d) != dim_to_bin.end())   // Qt: 迷惑，这个有啥用？？？
       continue;
     auto  cur_best = num_pq_chunks + 1;
     float cur_best_load = std::numeric_limits<float>::max();
@@ -263,7 +263,7 @@ int generate_pq_pivots(const float *passed_train_data, size_t num_train,
       if (bin_loads[b] < cur_best_load &&
           bin_to_dims[b].size() < cur_bin_threshold) {
         cur_best = b;
-        cur_best_load = bin_loads[b];
+        cur_best_load = bin_loads[b];           // 迷惑+1：这个也没赋值，有啥用？
       }
     }
     diskann::cout << " Pushing " << d << " into bin #: " << cur_best
@@ -274,7 +274,7 @@ int generate_pq_pivots(const float *passed_train_data, size_t num_train,
       if (cur_num_high == max_num_high)
         cur_bin_threshold = low_val;
     }
-  }
+  } // 现有策略先把前面的子空间填满，相对比较直接，这里考虑可以优化
 
   rearrangement.clear();
   chunk_offsets.clear();
@@ -338,9 +338,10 @@ int generate_pq_pivots(const float *passed_train_data, size_t num_train,
     }
   }
 
+  // full_pivot_data：float型的聚类中心，大小为num_centers * dim
   diskann::save_bin<float>(pq_pivots_path.c_str(), full_pivot_data.get(),
                            (size_t) num_centers, dim);
-  std::string centroids_path = pq_pivots_path + "_centroid.bin";
+  std::string centroids_path = pq_pivots_path + "_centroid.bin"; // 原始数据的中心点
   diskann::save_bin<float>(centroids_path.c_str(), centroid.get(), (size_t) dim,
                            1);
   std::string rearrangement_path = pq_pivots_path + "_rearrangement_perm.bin";
@@ -517,7 +518,7 @@ int generate_pq_data_from_pivots(const std::string data_file,
       }
     }
 
-    if (num_centers > 256) {
+    if (num_centers > 256) {            // 支持大于256类
       compressed_file_writer.write(
           (char *) (block_compressed_base.get()),
           cur_blk_size * num_pq_chunks * sizeof(uint32_t));

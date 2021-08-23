@@ -21,7 +21,7 @@
 
 #define ESTIMATE_RAM_USAGE(size, dim, datasize, degree) \
   (1.30 * (((double) size * dim) * datasize +           \
-           ((double) size * degree) * sizeof(unsigned) * SLACK_FACTOR))
+           ((double) size * degree) * sizeof(unsigned) * SLACK_FACTOR))  // Qt: SLACK_FACTOR是啥？这里两个1.3不重复吗？
 
 namespace diskann {
   template<typename T, typename TagT = int>
@@ -106,7 +106,7 @@ namespace diskann {
     /*  Internals of the library */
    protected:
     typedef std::vector<SimpleNeighbor>        vecNgh;
-    typedef std::vector<std::vector<unsigned>> CompactGraph;
+    typedef std::vector<std::vector<unsigned>> CompactGraph;  // _graph 是一个邻接矩阵
     CompactGraph                               _final_graph;
     CompactGraph                               _in_graph;
 
@@ -168,15 +168,15 @@ namespace diskann {
 
    private:
     size_t       _dim;
-    size_t       _aligned_dim;
+    size_t       _aligned_dim;  // 将_dim向上拓展成8的整数倍
     T *          _data;
     size_t       _nd;  // number of active points i.e. existing in the graph
     size_t       _max_points;  // total number of points in given data set
     size_t       _num_frozen_pts;
     bool         _has_built;
     Distance<T> *_distance;
-    unsigned     _width;
-    unsigned     _ep;
+    unsigned     _width;            // 图的最大出度
+    unsigned     _ep;               // 起始点，距离中心最近的点
     bool         _saturate_graph = false;
     std::vector<std::mutex> _locks;  // Per node lock, cardinality=max_points_
 

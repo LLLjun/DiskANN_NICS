@@ -780,8 +780,8 @@ namespace diskann {
     const T *    query = data.scratch.aligned_query_T;
     const float *query_float = data.scratch.aligned_query_float;
 
-    IOContext &ctx = data.ctx;
-    auto       query_scratch = &(data.scratch);
+    IOContext &ctx = data.ctx;                    // Linux下原生异步IO接口libaio
+    auto       query_scratch = &(data.scratch);   // 与query相关的信息
 
     // reset query
     query_scratch->reset();
@@ -801,14 +801,14 @@ namespace diskann {
 
     // query <-> PQ chunk centers distances
     float *pq_dists = query_scratch->aligned_pqtable_dist_scratch;
-    pq_table.populate_chunk_distances(query, pq_dists);
+    pq_table.populate_chunk_distances(query, pq_dists);     // todo
 
     // query <-> neighbor list
-    float *dist_scratch = query_scratch->aligned_dist_scratch;
-    _u8 *  pq_coord_scratch = query_scratch->aligned_pq_coord_scratch;
+    float *dist_scratch = query_scratch->aligned_dist_scratch;        // MAX_DEGREE
+    _u8 *  pq_coord_scratch = query_scratch->aligned_pq_coord_scratch;// [N_CHUNKS * MAX_DEGREE]
 
     // lambda to batch compute query<-> node distances in PQ space
-    auto compute_dists = [this, pq_coord_scratch, pq_dists](
+    auto compute_dists = [this, pq_coord_scratch, pq_dists](      // 待定
         const unsigned *ids, const _u64 n_ids, float *dists_out) {
       ::aggregate_coords(ids, n_ids, this->data, this->n_chunks,
                          pq_coord_scratch);
@@ -819,14 +819,14 @@ namespace diskann {
     std::vector<Neighbor> retset(l_search + 1);
     tsl::robin_set<_u64>  visited(4096);
 
-    std::vector<Neighbor> full_retset;
+    std::vector<Neighbor> full_retset;      // 最终结果
     full_retset.reserve(4096);
     tsl::robin_map<_u64, T *> fp_coords;
 
     _u32                        best_medoid = 0;
     float                       best_dist = (std::numeric_limits<float>::max)();
     std::vector<SimpleNeighbor> medoid_dists;
-    for (_u64 cur_m = 0; cur_m < num_medoids; cur_m++) {
+    for (_u64 cur_m = 0; cur_m < num_medoids; cur_m++) {      // 支持从多个起始点中选择一个最好的
       float cur_expanded_dist = dist_cmp_float->compare(
           query_float, centroid_data + aligned_dim * cur_m,
           (unsigned) aligned_dim);
@@ -852,11 +852,11 @@ namespace diskann {
     unsigned k = 0;
 
     // cleared every iteration
-    std::vector<unsigned> frontier;
+    std::vector<unsigned> frontier;   // 需要去SSD中取的点
     std::vector<std::pair<unsigned, char *>> frontier_nhoods;
     std::vector<AlignedRead> frontier_read_reqs;
     std::vector<std::pair<unsigned, std::pair<unsigned, unsigned *>>>
-        cached_nhoods;
+        cached_nhoods;    // 待搜索的点
 
     while (k < cur_list_size) {
       auto nk = cur_list_size;
@@ -871,7 +871,7 @@ namespace diskann {
       // find new beam
       // WAS: _u64 marker = k - 1;
       _u32 marker = k;
-      _u32 num_seen = 0;
+      _u32 num_seen = 0;    // Qt: 是啥
 
       /*
         bool marker_set = false;
@@ -902,7 +902,7 @@ namespace diskann {
           }
           retset[marker].flag = false;
           if (this->count_visited_nodes) {
-            reinterpret_cast<std::atomic<_u32> &>(
+            reinterpret_cast<std::atomic<_u32> &>(      // Qt: 没看懂
                 this->node_visit_counter[retset[marker].id].second)
                 .fetch_add(1);
           }
@@ -955,7 +955,7 @@ namespace diskann {
 
         // compute node_nbrs <-> query dists in PQ space
         cpu_timer.reset();
-        compute_dists(node_nbrs, nnbrs, dist_scratch);
+        compute_dists(node_nbrs, nnbrs, dist_scratch);  // 邻居列表，邻居数量，结果？
         if (stats != nullptr) {
           stats->n_cmps += nnbrs;
           stats->cpu_us += cpu_timer.elapsed();
@@ -1097,7 +1097,7 @@ namespace diskann {
     if (stats != nullptr) {
       stats->total_us = (double) query_timer.elapsed();
     }
-  }
+  } // end of cached_beam_search
 
 #ifdef EXEC_ENV_OLS
   template<typename T>

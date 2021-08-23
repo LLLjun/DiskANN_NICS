@@ -433,7 +433,7 @@ namespace diskann {
                     _distance->compare(_data + _aligned_dim * (size_t) id,
                                        node_coords, (unsigned) _aligned_dim),
                     true);
-      if (inserted_into_pool.find(id) == inserted_into_pool.end()) {
+      if (inserted_into_pool.find(id) == inserted_into_pool.end()) {    // find: 若不存在，返回set.end()
         inserted_into_pool.insert(id);
         best_L_nodes[l++] = nn;
       }
@@ -580,7 +580,7 @@ namespace diskann {
     result.reserve(range);
     std::vector<float> occlude_factor(pool.size(), 0);
 
-    occlude_list(pool, alpha, range, maxc, result, occlude_factor);
+    occlude_list(pool, alpha, range, maxc, result, occlude_factor);   // Qt: 还没有看
 
     /* Add all the nodes in result into a variable called cut_graph
      * So this contains all the neighbors of id location
@@ -724,7 +724,7 @@ namespace diskann {
       omp_set_num_threads(NUM_THREADS);
 
     uint32_t NUM_SYNCS =
-        (unsigned) DIV_ROUND_UP(_nd + _num_frozen_pts, (64 * 64));
+        (unsigned) DIV_ROUND_UP(_nd + _num_frozen_pts, (64 * 64));  // 向上取整，Qt：64*64？一次更新的batch size
     if (NUM_SYNCS < 40)
       NUM_SYNCS = 40;
     diskann::cout << "Number of syncs: " << NUM_SYNCS << std::endl;
@@ -735,12 +735,12 @@ namespace diskann {
       omp_set_num_threads(NUM_THREADS);
 
     const unsigned argL = parameters.Get<unsigned>("L");  // Search list size
-    const unsigned range = parameters.Get<unsigned>("R");
+    const unsigned range = parameters.Get<unsigned>("R");  // out degree range
     const float    last_round_alpha = parameters.Get<float>("alpha");
     unsigned       L = argL;
 
     std::vector<unsigned> Lvec;
-    Lvec.push_back(L);
+    Lvec.push_back(L);  // 两遍？因为有两轮
     Lvec.push_back(L);
     const unsigned NUM_RNDS = 2;
 
@@ -751,7 +751,7 @@ namespace diskann {
 
     /* visit_order is a vector that is initialized to the entire graph */
     std::vector<unsigned> visit_order;
-    visit_order.reserve(_nd + _num_frozen_pts);
+    visit_order.reserve(_nd + _num_frozen_pts);  // Qt:_num_frozen_pts是什么, 与需要删除的点有关，目前在这里是0, _nd是点数
     for (unsigned i = 0; i < (unsigned) _nd; i++) {
       visit_order.emplace_back(i);
     }
@@ -773,8 +773,8 @@ namespace diskann {
     }
 
     for (uint64_t p = 0; p < _max_points + _num_frozen_pts; p++) {
-      _final_graph[p].reserve((size_t)(std::ceil(range * SLACK_FACTOR * 1.05)));
-    }
+      _final_graph[p].reserve((size_t)(std::ceil(range * SLACK_FACTOR * 1.05)));   // Qt：设置稍大一些的出度？
+    } // 给图中的每个点分配空间，稍大于出度range
 
     std::random_device               rd;
     std::mt19937                     gen(rd());
@@ -782,7 +782,7 @@ namespace diskann {
 
     // creating a initial list to begin the search process. it has _ep and
     // random other nodes
-    std::set<unsigned> unique_start_points;
+    std::set<unsigned> unique_start_points;     // set 实现 自动递增排序 并 去除重复元素 的功能
     unique_start_points.insert(_ep);
 
     std::vector<unsigned> init_ids;
@@ -804,7 +804,7 @@ namespace diskann {
       unsigned progress_counter = 0;
 
       size_t round_size = DIV_ROUND_UP(_nd, NUM_SYNCS);  // size of each batch
-      std::vector<unsigned> need_to_sync(_max_points + _num_frozen_pts, 0);
+      std::vector<unsigned> need_to_sync(_max_points + _num_frozen_pts, 0); // 标志反向连接部分的结点list太长需要处理
 
       std::vector<std::vector<unsigned>> pruned_list_vector(round_size);
 
@@ -815,18 +815,18 @@ namespace diskann {
 
         auto s = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> diff;
-
+        // 获得每个点的pruned_list
 #pragma omp parallel for schedule(dynamic)
         for (_s64 node_ctr = (_s64) start_id; node_ctr < (_s64) end_id;
              ++node_ctr) {
           auto                     node = visit_order[node_ctr];
           size_t                   node_offset = node_ctr - start_id;
-          tsl::robin_set<unsigned> visited;
+          tsl::robin_set<unsigned> visited;   // 存储了访问过的点，只有id
           std::vector<unsigned> &pruned_list = pruned_list_vector[node_offset];
           // get nearest neighbors of n in tmp. pool contains all the
           // points that were checked along with their distance from
           // n. visited contains all the points visited, just the ids
-          std::vector<Neighbor> pool;
+          std::vector<Neighbor> pool; // 存储了候选者，id和距离信息, 远长于2L
           pool.reserve(L * 2);
           visited.reserve(L * 2);
           get_expanded_nodes(node, L, init_ids, pool, visited);
@@ -846,7 +846,7 @@ namespace diskann {
               }
             }
           prune_neighbors(node, pool, parameters, pruned_list);
-        }
+        } // end of round_size, 每次单个结点
         diff = std::chrono::high_resolution_clock::now() - s;
         sync_time += diff.count();
 
@@ -869,12 +869,12 @@ namespace diskann {
           auto                   node = visit_order[node_ctr];
           _u64                   node_offset = node_ctr - start_id;
           std::vector<unsigned> &pruned_list = pruned_list_vector[node_offset];
-          batch_inter_insert(node, pruned_list, parameters, need_to_sync);
+          batch_inter_insert(node, pruned_list, parameters, need_to_sync);    // 直接把反向边连上，当邻居数量大于1.3*R，才会添加标记need_to_sync
           //          inter_insert(node, pruned_list, parameters, 0);
           pruned_list.clear();
           pruned_list.shrink_to_fit();
         }
-
+        // 反向连接
 #pragma omp parallel for schedule(dynamic, 65536)
         for (_s64 node_ctr = 0; node_ctr < (_s64)(visit_order.size());
              node_ctr++) {
@@ -903,7 +903,7 @@ namespace diskann {
             for (auto id : new_out_neighbors)
               _final_graph[node].emplace_back(id);
           }
-        }
+        }  // Qt：为啥要把反向连接待同步操作最后一起做？更加高效？
 
         diff = std::chrono::high_resolution_clock::now() - s;
         inter_time += diff.count();
@@ -924,7 +924,7 @@ namespace diskann {
           inter_count = 0;
           progress_counter += 5;
         }
-      }
+      } // end of NUM_SYNCS
 // Gopal. Splittng diskann_dll into separate DLLs for search and build.
 // This code should only be available in the "build" DLL.
 #ifdef DISKANN_BUILD
@@ -936,7 +936,7 @@ namespace diskann {
       diskann::cout << "search+prune_time=" << total_sync_time
                     << "s, inter_time=" << total_inter_time
                     << "s, inter_count=" << total_inter_count << std::endl;
-    }
+    }  // end of NUM_RNDS
 
     diskann::cout << "Starting final cleanup.." << std::flush;
 #pragma omp parallel for schedule(dynamic, 65536)
@@ -966,7 +966,7 @@ namespace diskann {
       }
     }
     diskann::cout << "done. Link time: "
-                  << ((double) link_timer.elapsed() / (double) 1000000) << "s"
+                  << ((double) link_timer.elapsed() / (double) 1000000) << "s"    // 最后cleanup这一步很耗时啊，link一共3379s，前面的search+inter才1800s
                   << std::endl;
   }
 
@@ -1388,7 +1388,7 @@ namespace diskann {
   void Index<T, TagT>::update_in_graph() {
     diskann::cout << "Updating in_graph....." << std::flush;
     for (unsigned i = 0; i < _in_graph.size(); i++)
-      _in_graph[i].clear();
+      _in_graph[i].clear();  // 删除vector中的所有元素，size变为0，capacity保持不变
 
     for (unsigned i = 0; i < _final_graph.size();
          i++)  // copying to in-neighbor graph
@@ -1416,7 +1416,7 @@ namespace diskann {
     diskann::cout << std::endl
                   << "Max in_degree = " << max_in
                   << "; Min in_degree = " << min_in << "; Average in_degree = "
-                  << (float) (avg_in) / (float) (_nd + _num_frozen_pts)
+                  << (float) (avg_in) / (float) (_nd + _num_frozen_pts)  // 图中现存的点数_nd和固定的点数_num_frozen_pts是不重复的
                   << std::endl;
   }
 

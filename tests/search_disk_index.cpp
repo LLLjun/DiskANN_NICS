@@ -54,12 +54,12 @@ int search_disk_index(int argc, char** argv) {
   unsigned*         gt_ids = nullptr;
   float*            gt_dists = nullptr;
   size_t            query_num, query_dim, query_aligned_dim, gt_num, gt_dim;
-  std::vector<_u64> Lvec;
+  std::vector<_u64> Lvec;  // efs
 
   std::string index_prefix_path(argv[2]);
   std::string pq_prefix = index_prefix_path + "_pq";
   std::string disk_index_file = index_prefix_path + "_disk.index";
-  std::string warmup_query_file = index_prefix_path + "_sample_data.bin";
+  std::string warmup_query_file = index_prefix_path + "_sample_data.bin";   // 这是根据basedata采样的，并不是query采样得到的
   _u64        num_nodes_to_cache = std::atoi(argv[3]);
   _u32        num_threads = std::atoi(argv[4]);
   _u32        beamwidth = std::atoi(argv[5]);
@@ -165,7 +165,7 @@ int search_disk_index(int argc, char** argv) {
     std::vector<float>    warmup_result_dists(warmup_num, 0);
 
 #pragma omp parallel for schedule(dynamic, 1)
-    for (_s64 i = 0; i < (int64_t) warmup_num; i++) {
+    for (_s64 i = 0; i < (int64_t) warmup_num; i++) {     // Qt: 这一步对warmup搜索有啥用？
       _pFlashIndex->cached_beam_search(warmup + (i * warmup_aligned_dim), 1,
                                        warmup_L,
                                        warmup_result_ids_64.data() + (i * 1),
@@ -209,7 +209,7 @@ int search_disk_index(int argc, char** argv) {
     } else
       optimized_beamwidth = beamwidth;
 
-    query_result_ids[test_id].resize(recall_at * query_num);
+    query_result_ids[test_id].resize(recall_at * query_num);  // 结果存储大小
     query_result_dists[test_id].resize(recall_at * query_num);
 
     diskann::QueryStats* stats = new diskann::QueryStats[query_num];
@@ -265,27 +265,44 @@ int search_disk_index(int argc, char** argv) {
       diskann::cout << std::endl;
   }
 
-  diskann::cout << "Done searching. Now saving results " << std::endl;
-  _u64 test_id = 0;
-  for (auto L : Lvec) {
-    std::string cur_result_path =
-        result_output_prefix + "_" + std::to_string(L) + "_idx_uint32.bin";
-    diskann::save_bin<_u32>(cur_result_path, query_result_ids[test_id].data(),
-                            query_num, recall_at);
+  // diskann::cout << "Done searching. Now saving results " << std::endl;
+  // _u64 test_id = 0;
+  // for (auto L : Lvec) {
+  //   std::string cur_result_path =
+  //       result_output_prefix + "_" + std::to_string(L) + "_idx_uint32.bin";
+  //   diskann::save_bin<_u32>(cur_result_path, query_result_ids[test_id].data(),
+  //                           query_num, recall_at);
 
-    cur_result_path =
-        result_output_prefix + "_" + std::to_string(L) + "_dists_float.bin";
-    diskann::save_bin<float>(cur_result_path,
-                             query_result_dists[test_id++].data(), query_num,
-                             recall_at);
-  }
+  //   cur_result_path =
+  //       result_output_prefix + "_" + std::to_string(L) + "_dists_float.bin";
+  //   diskann::save_bin<float>(cur_result_path,
+  //                            query_result_dists[test_id++].data(), query_num,
+  //                            recall_at);
+  // }
   diskann::aligned_free(query);
   if (warmup != nullptr)
     diskann::aligned_free(warmup);
   return 0;
 }
 
+inline void assignToThisCore(bool single, int core_id)
+{
+    cpu_set_t mask;
+    CPU_ZERO(&mask);
+    if (single){
+        CPU_SET(core_id, &mask);
+    } else {
+        for (int i = 0; i < core_id; i++){
+            CPU_SET(i, &mask);
+        }
+    }
+    sched_setaffinity(0, sizeof(mask), &mask);
+}
+
 int main(int argc, char** argv) {
+
+  assignToThisCore(false, 40);
+
   if (argc < 11) {
     diskann::cout
         << "Usage: " << argv[0]

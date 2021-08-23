@@ -178,7 +178,7 @@ namespace diskann {
                    const std::string &medoids_file) {
     // Read ID maps
     std::vector<std::string>           vamana_names(nshards);
-    std::vector<std::vector<unsigned>> idmaps(nshards);
+    std::vector<std::vector<unsigned>> idmaps(nshards);  // 二维矩阵 nshards * 每一类数量
     for (_u64 shard = 0; shard < nshards; shard++) {
       vamana_names[shard] =
           vamana_prefix + std::to_string(shard) + vamana_suffix;
@@ -287,7 +287,7 @@ namespace diskann {
     for (const auto &id_shard : node_shard) {
       unsigned node_id = id_shard.first;
       unsigned shard_id = id_shard.second;
-      if (cur_id < node_id) {
+      if (cur_id < node_id) {  // 第一次
         // Gopal. random_shuffle() is deprecated.
         std::shuffle(final_nhood.begin(), final_nhood.end(), urng);
         nnbrs =
@@ -339,7 +339,7 @@ namespace diskann {
 
     diskann::cout << "Finished merge" << std::endl;
     return 0;
-  }
+  } // end of merge_shards
 
   template<typename T>
   int build_merged_vamana_index(std::string     base_file,
@@ -351,7 +351,7 @@ namespace diskann {
     size_t base_num, base_dim;
     diskann::get_bin_metadata(base_file, base_num, base_dim);
 
-    double full_index_ram =
+    double full_index_ram =   // 计算图索引的大小，Qt 1.3, 这里都是未压缩的信息
         ESTIMATE_RAM_USAGE(base_num, base_dim, sizeof(T), R);
     if (full_index_ram < ram_budget * 1024 * 1024 * 1024) {
       diskann::cout << "Full index fits in RAM, building in one shot"
@@ -367,17 +367,17 @@ namespace diskann {
 
       std::unique_ptr<diskann::Index<T>> _pvamanaIndex =
           std::unique_ptr<diskann::Index<T>>(
-              new diskann::Index<T>(_compareMetric, base_file.c_str()));
+              new diskann::Index<T>(_compareMetric, base_file.c_str()));  // 虽然这里的写法不太懂，但是应该就是实例化了一个Index类别
       _pvamanaIndex->build(paras);
       _pvamanaIndex->save(mem_index_path.c_str());
-      std::remove(medoids_file.c_str());
+      std::remove(medoids_file.c_str());  // 把文件删除
       std::remove(centroids_file.c_str());
-      return 0;
+      return 0;  // return 
     }
     std::string merged_index_prefix = mem_index_path + "_tempFiles";
     int         num_parts =
         partition_with_ram_budget<T>(base_file, sampling_rate, ram_budget,
-                                     2 * R / 3, merged_index_prefix, 2);
+                                     2 * R / 3, merged_index_prefix, 2);   // Qt:看不懂这里是在干啥，2*R/3 又是啥？
 
     std::string cur_centroid_filepath = merged_index_prefix + "_centroids.bin";
     std::rename(cur_centroid_filepath.c_str(), centroids_file.c_str());
@@ -390,7 +390,7 @@ namespace diskann {
 
       diskann::Parameters paras;
       paras.Set<unsigned>("L", L);
-      paras.Set<unsigned>("R", (2 * (R / 3)));
+      paras.Set<unsigned>("R", (2 * (R / 3)));  // Qt:参数问题
       paras.Set<unsigned>("C", 750);
       paras.Set<float>("alpha", 2.0f);
       paras.Set<unsigned>("num_rnds", 2);
@@ -533,7 +533,7 @@ namespace diskann {
         (((_u64) width_u32 + 1) * sizeof(unsigned)) + (ndims_64 * sizeof(T));
     nnodes_per_sector = SECTOR_LEN / max_node_len;
 
-    diskann::cout << "medoid: " << medoid << "B" << std::endl;
+    diskann::cout << "medoid: " << medoid << "B" << std::endl;  // Qt: medoid是起始点的id吧
     diskann::cout << "max_node_len: " << max_node_len << "B" << std::endl;
     diskann::cout << "nnodes_per_sector: " << nnodes_per_sector << "B"
                   << std::endl;
@@ -543,10 +543,10 @@ namespace diskann {
     std::make_unique<char[]>(SECTOR_LEN);
     std::unique_ptr<char[]> node_buf =
     std::make_unique<char[]>(max_node_len);
-    unsigned &nnbrs = *(unsigned *) (node_buf.get() + ndims_64 * sizeof(T));
+    unsigned &nnbrs = *(unsigned *) (node_buf.get() + ndims_64 * sizeof(T));  // 邻居数量的起始位置
     unsigned *nhood_buf =
         (unsigned *) (node_buf.get() + (ndims_64 * sizeof(T)) +
-                      sizeof(unsigned));
+                      sizeof(unsigned));          // 邻居的起始位置
 
     // number of sectors (1 for meta data)
     _u64 n_sectors = ROUND_UP(npts_64, nnodes_per_sector) /
@@ -675,7 +675,7 @@ namespace diskann {
 
     diskann::get_bin_metadata(dataFilePath, points_num, dim);
 
-    size_t num_pq_chunks =
+    size_t num_pq_chunks =  //分配到每个数据的RAM大小，目前最大为100
         (size_t)(std::floor)(_u64(final_index_ram_limit / points_num));
 
     num_pq_chunks = num_pq_chunks <= 0 ? 1 : num_pq_chunks;
@@ -693,7 +693,7 @@ namespace diskann {
     // generates random sample and sets it to train_data and updates
     // train_size
     gen_random_slice<T>(dataFilePath, p_val, train_data, train_size,
-    train_dim);
+    train_dim);  // 按照p_val的概率从basedata中筛选出数据
 
     diskann::cout << "Training data loaded of size " << train_size <<
     std::endl;
@@ -709,7 +709,7 @@ namespace diskann {
 
     train_data = nullptr;
 
-    diskann::build_merged_vamana_index<T>(
+    diskann::build_merged_vamana_index<T>(    // 非常耗时
         dataFilePath, _compareMetric, L, R, p_val, indexing_ram_budget,
         mem_index_path, medoids_path, centroids_path);
 
@@ -718,7 +718,7 @@ namespace diskann {
 
     double sample_sampling_rate = (150000.0 / points_num);
     gen_random_slice<T>(dataFilePath, sample_base_prefix,
-    sample_sampling_rate);
+    sample_sampling_rate);    // Qt: 采样是要干嘛？
 
     std::remove(mem_index_path.c_str());
 
