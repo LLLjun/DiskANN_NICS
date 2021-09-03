@@ -5,6 +5,10 @@
 
 #include "utils.h"
 
+#ifndef DOUBLEPQ
+#define DOUBLEPQ
+#endif
+
 namespace diskann {
   template<typename T>
   class FixedChunkPQTable {
@@ -118,14 +122,49 @@ namespace diskann {
                   << std::endl;
     //      assert((_u64) ndims_u32 == n_chunks * chunk_size);
     // alloc and compute transpose
+#ifdef DOUBLEPQ
+    tables_T = new float[512 * ndims_u64];
+    for (_u64 i = 0; i < 512; i++) {
+      for (_u64 j = 0; j < ndims_u64; j++) {
+        tables_T[j * 512 + i] = tables[i * ndims_u64 + j];
+      }
+    }
+#else
     tables_T = new float[256 * ndims_u64];
     for (_u64 i = 0; i < 256; i++) {
       for (_u64 j = 0; j < ndims_u64; j++) {
         tables_T[j * 256 + i] = tables[i * ndims_u64 + j];
       }
     }
+#endif
   }
 
+#ifdef DOUBLEPQ
+  void
+  populate_chunk_distances(const T* query_vec, float* dist_vec) {
+    memset(dist_vec, 0, 512 * n_chunks * sizeof(float));
+    // chunk wise distance computation
+    for (_u64 chunk = 0; chunk < n_chunks; chunk++) {
+      // sum (q-c)^2 for the dimensions associated with this chunk
+      float* chunk_dists = dist_vec + (512 * chunk);
+      for (_u64 j = chunk_offsets[chunk]; j < chunk_offsets[chunk + 1]; j++) {
+        _u64         permuted_dim_in_query = rearrangement[j];
+        const float* centers_dim_vec = tables_T + (512 * j);
+        for (_u64 idx = 0; idx < 512; idx++) {
+          // Gopal. Fixing crash in v14 machines.
+          // float diff = centers_dim_vec[idx] -
+          //             ((float) query_vec[permuted_dim_in_query] -
+          //              centroid[permuted_dim_in_query]);
+          // chunk_dists[idx] += (diff * diff);
+          double diff =
+              centers_dim_vec[idx] - (query_vec[permuted_dim_in_query] -
+                                      centroid[permuted_dim_in_query]);
+          chunk_dists[idx] += (float) (diff * diff);
+        }
+      }
+    }
+  }
+#else
   void
   populate_chunk_distances(const T* query_vec, float* dist_vec) {
     memset(dist_vec, 0, 256 * n_chunks * sizeof(float));
@@ -150,5 +189,7 @@ namespace diskann {
       }
     }
   }
+#endif
+
 };
 }  // namespace diskann

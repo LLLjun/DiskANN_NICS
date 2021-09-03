@@ -30,6 +30,10 @@
 #include "linux_aligned_file_reader.h"
 #endif
 
+#ifndef DOUBLEPQ
+#define DOUBLEPQ
+#endif
+
 #define SECTOR_LEN 4096
 
 #define READ_U64(stream, val) stream.read((char *) &val, sizeof(_u64))
@@ -55,6 +59,34 @@
 #define OFFSET_TO_NODE_COORDS(node_buf) (T *) (node_buf)
 
 namespace {
+#ifdef DOUBLEPQ
+  void aggregate_coords(const unsigned *ids, const _u64 n_ids,
+                        const uint16_t *all_coords, const _u64 ndims, uint16_t *out) {
+    for (_u64 i = 0; i < n_ids; i++) {
+      memcpy(out + i * ndims, all_coords + ids[i] * ndims, ndims * sizeof(uint16_t));
+    }
+  }
+
+  void pq_dist_lookup(const uint16_t *pq_ids, const _u64 n_pts,
+                      const _u64 pq_nchunks, const float *pq_dists,
+                      float *dists_out) {
+    _mm_prefetch((char *) dists_out, _MM_HINT_T0);
+    _mm_prefetch((char *) pq_ids, _MM_HINT_T0);
+    _mm_prefetch((char *) (pq_ids + 64), _MM_HINT_T0);
+    _mm_prefetch((char *) (pq_ids + 128), _MM_HINT_T0);
+    memset(dists_out, 0, n_pts * sizeof(float));
+    for (_u64 chunk = 0; chunk < pq_nchunks; chunk++) {
+      const float *chunk_dists = pq_dists + 512 * chunk;
+      if (chunk < pq_nchunks - 1) {
+        _mm_prefetch((char *) (chunk_dists + 512), _MM_HINT_T0);
+      }
+      for (_u64 idx = 0; idx < n_pts; idx++) {
+        uint16_t pq_centerid = pq_ids[pq_nchunks * idx + chunk];
+        dists_out[idx] += chunk_dists[pq_centerid];
+      }
+    }
+  }
+#else
   void aggregate_coords(const unsigned *ids, const _u64 n_ids,
                         const _u8 *all_coords, const _u64 ndims, _u8 *out) {
     for (_u64 i = 0; i < n_ids; i++) {
@@ -81,6 +113,7 @@ namespace {
       }
     }
   }
+#endif
 }  // namespace
 
 namespace diskann {
@@ -181,6 +214,56 @@ namespace diskann {
     }
   }
 
+#ifdef DOUBLEPQ
+  template<typename T>
+  void PQFlashIndex<T>::setup_thread_data(_u64 nthreads) {
+    diskann::cout << "Setting up thread-specific contexts for nthreads: "
+                  << nthreads << std::endl;
+// omp parallel for to generate unique thread IDs
+#pragma omp parallel for num_threads((int) nthreads)
+    for (_s64 thread = 0; thread < (_s64) nthreads; thread++) {
+#pragma omp critical
+      {
+        this->reader->register_thread();
+        IOContext &ctx = this->reader->get_ctx();
+        // diskann::cout << "ctx: " << ctx << "\n";
+        QueryScratch<T> scratch;
+        _u64 coord_alloc_size = ROUND_UP(MAX_N_CMPS * this->aligned_dim, 512);
+        diskann::alloc_aligned((void **) &scratch.coord_scratch,
+                               coord_alloc_size, 512);
+        // scratch.coord_scratch = new T[MAX_N_CMPS * this->aligned_dim];
+        // //Gopal. Commenting out the reallocation!
+        diskann::alloc_aligned((void **) &scratch.sector_scratch,
+                               MAX_N_SECTOR_READS * SECTOR_LEN, SECTOR_LEN);
+        diskann::alloc_aligned((void **) &scratch.aligned_scratch,
+                               512 * sizeof(float), 512);
+        diskann::alloc_aligned((void **) &scratch.aligned_pq_coord_scratch,
+                               51200 * sizeof(_u8), 512);
+        diskann::alloc_aligned((void **) &scratch.aligned_pqtable_dist_scratch,
+                               51200 * sizeof(float), 512);
+        diskann::alloc_aligned((void **) &scratch.aligned_dist_scratch,
+                               512 * sizeof(float), 512);
+        diskann::alloc_aligned((void **) &scratch.aligned_query_T,
+                               this->aligned_dim * sizeof(T), 8 * sizeof(T));
+        diskann::alloc_aligned((void **) &scratch.aligned_query_float,
+                               this->aligned_dim * sizeof(float),
+                               8 * sizeof(float));
+
+        memset(scratch.aligned_scratch, 0, 512 * sizeof(float));
+        memset(scratch.coord_scratch, 0, MAX_N_CMPS * this->aligned_dim);
+        memset(scratch.aligned_query_T, 0, this->aligned_dim * sizeof(T));
+        memset(scratch.aligned_query_float, 0,
+               this->aligned_dim * sizeof(float));
+
+        ThreadData<T> data;
+        data.ctx = ctx;
+        data.scratch = scratch;
+        this->thread_data.push(data);
+      }
+    }
+    load_flag = true;
+  }
+#else
   template<typename T>
   void PQFlashIndex<T>::setup_thread_data(_u64 nthreads) {
     diskann::cout << "Setting up thread-specific contexts for nthreads: "
@@ -229,6 +312,7 @@ namespace diskann {
     }
     load_flag = true;
   }
+#endif
 
   template<typename T>
   void PQFlashIndex<T>::destroy_thread_data() {
@@ -571,6 +655,9 @@ namespace diskann {
     std::string medoids_file = std::string(disk_index_file) + "_medoids.bin";
     std::string centroids_file =
         std::string(disk_index_file) + "_centroids.bin";
+#ifdef DOUBLEPQ
+    std::string pq_compressed_codeflag_path = pq_compressed_vectors + "_codeflag.bin";
+#endif
 
     size_t pq_file_dim, pq_file_num_centroids;
 #ifdef EXEC_ENV_OLS
@@ -581,12 +668,19 @@ namespace diskann {
 
     this->disk_index_file = std::string(disk_index_file);
 
+#ifdef DOUBLEPQ
+    if (pq_file_num_centroids != 512) {
+      diskann::cout << "Error. Number of PQ centroids is not 512. Exitting."
+                    << std::endl;
+      return -1;
+    }
+#else
     if (pq_file_num_centroids != 256) {
       diskann::cout << "Error. Number of PQ centroids is not 256. Exitting."
                     << std::endl;
       return -1;
     }
-
+#endif
     this->data_dim = pq_file_dim;
     this->aligned_dim = ROUND_UP(pq_file_dim, 8);
 
@@ -594,6 +688,39 @@ namespace diskann {
 #ifdef EXEC_ENV_OLS
     diskann::load_bin<_u8>(files, pq_compressed_vectors, this->data, npts_u64,
                            nchunks_u64);
+#elif defined(DOUBLEPQ)
+    _u8 *tmp_this_data;
+    diskann::load_bin<_u8>(pq_compressed_vectors, tmp_this_data, npts_u64,
+                           nchunks_u64);
+    diskann::cout << "load compresed ok" << std::endl;
+    this->data = new uint16_t[npts_u64 * nchunks_u64];
+    _u8 dcpq_bit_to_value[8] = {128, 64, 32, 16, 8, 4, 2, 1};
+
+    size_t npts_dcpq, len_cdf;
+    _u8 *codebook_flaglist;
+    diskann::load_bin<_u8>(pq_compressed_codeflag_path, codebook_flaglist, npts_dcpq,
+                           len_cdf);
+    diskann::cout
+        << "Codebook Flag. #points: "
+        << npts_dcpq << " #len: " << len_cdf
+        << std::endl;
+    _u8 flag_id, bit_id, flag_add;
+
+    for (size_t i = 0; i < npts_u64; i++){
+      for (size_t j = 0; j < nchunks_u64; j++){
+        flag_id = (_u8) (j / 8);
+        bit_id = (_u8) (j % 8);
+        flag_add = dcpq_bit_to_value[bit_id];
+
+        this->data[i * nchunks_u64 + j] = (uint16_t)tmp_this_data[i * nchunks_u64 + j];
+
+        if ((codebook_flaglist[i * len_cdf + flag_id] & flag_add) == flag_add){
+          this->data[i * nchunks_u64 + j] += 256;
+        }
+      }
+    }
+    delete[] tmp_this_data;
+    diskann::cout << "trans compresed ok" << std::endl;
 #else
     diskann::load_bin<_u8>(pq_compressed_vectors, this->data, npts_u64,
                            nchunks_u64);
@@ -805,8 +932,11 @@ namespace diskann {
 
     // query <-> neighbor list
     float *dist_scratch = query_scratch->aligned_dist_scratch;        // MAX_DEGREE
+#ifdef DOUBLEPQ
+    uint16_t *  pq_coord_scratch = query_scratch->aligned_pq_coord_scratch;// [N_CHUNKS * MAX_DEGREE]
+#else
     _u8 *  pq_coord_scratch = query_scratch->aligned_pq_coord_scratch;// [N_CHUNKS * MAX_DEGREE]
-
+#endif
     // lambda to batch compute query<-> node distances in PQ space
     auto compute_dists = [this, pq_coord_scratch, pq_dists](      // 待定
         const unsigned *ids, const _u64 n_ids, float *dists_out) {

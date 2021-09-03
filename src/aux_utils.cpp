@@ -21,6 +21,11 @@
 #include "pq_flash_index.h"
 #include "utils.h"
 
+// liujun.
+#ifndef DOUBLEPQ
+#define DOUBLEPQ
+#endif
+
 namespace diskann {
 
   double get_memory_budget(const std::string &mem_budget_str) {
@@ -683,6 +688,14 @@ namespace diskann {
     num_pq_chunks =
         num_pq_chunks > MAX_PQ_CHUNKS ? MAX_PQ_CHUNKS : num_pq_chunks;
 
+    // liujun. 控制位宽
+#ifdef DOUBLEPQ
+    size_t num_2pq_chunks = 88;
+    num_pq_chunks =
+        num_pq_chunks > num_2pq_chunks ? num_2pq_chunks : num_pq_chunks;
+    size_t cdf_len = DIV_ROUND_UP(num_pq_chunks, 8);
+    diskann::cout << "Compressing dual codebook need flag len " << cdf_len << std::endl;
+#endif
     diskann::cout << "Compressing " << dim << "-dimensional data into "
                   << num_pq_chunks << " bytes per vector." << std::endl;
 
@@ -697,13 +710,22 @@ namespace diskann {
 
     diskann::cout << "Training data loaded of size " << train_size <<
     std::endl;
-
+    // liujun.
+#ifdef DOUBLEPQ
     generate_pq_pivots(train_data, train_size, (uint32_t) dim, 256,
                        (uint32_t) num_pq_chunks, 15, pq_pivots_path);
-    generate_pq_data_from_pivots<T>(dataFilePath, 256, (uint32_t)
-    num_pq_chunks,
+    generate_pq_data_from_pivots<T>(dataFilePath, 512, (uint32_t) num_pq_chunks,
                                     pq_pivots_path,
-                                    pq_compressed_vectors_path);
+                                    pq_compressed_vectors_path, cdf_len);
+    diskann::cout << "Train double PQ done" << std::endl;
+    exit(0);
+#else
+    generate_pq_pivots(train_data, train_size, (uint32_t) dim, 256,
+                       (uint32_t) num_pq_chunks, 15, pq_pivots_path);
+    generate_pq_data_from_pivots<T>(dataFilePath, 256, (uint32_t) num_pq_chunks,
+                                    pq_pivots_path,
+                                    pq_compressed_vectors_path, 1);
+#endif
 
     delete[] train_data;
 

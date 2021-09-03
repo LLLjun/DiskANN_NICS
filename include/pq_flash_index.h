@@ -23,6 +23,10 @@
 #define MAX_N_SECTOR_READS 128
 #define MAX_PQ_CHUNKS 100
 
+#ifndef DOUBLEPQ
+#define DOUBLEPQ
+#endif
+
 namespace diskann {
   template<typename T>
   struct QueryScratch {
@@ -38,8 +42,13 @@ namespace diskann {
         nullptr;  // MUST BE AT LEAST [256 * NCHUNKS]
     float *aligned_dist_scratch =
         nullptr;  // MUST BE AT LEAST diskann MAX_DEGREE
+#ifdef DOUBLEPQ
+    uint16_t *aligned_pq_coord_scratch =
+        nullptr;  // MUST BE AT LEAST  [N_CHUNKS * MAX_DEGREE]
+#else
     _u8 *aligned_pq_coord_scratch =
         nullptr;  // MUST BE AT LEAST  [N_CHUNKS * MAX_DEGREE]
+#endif
     T *    aligned_query_T = nullptr;
     float *aligned_query_float = nullptr;
 
@@ -142,7 +151,11 @@ namespace diskann {
     // data: _u8 * n_chunks
     // chunk_size = chunk size of each dimension chunk
     // pq_tables = float* [[2^8 * [chunk_size]] * n_chunks]
+#ifdef DOUBLEPQ
+    uint16_t *           data = nullptr;
+#else
     _u8 *                data = nullptr;
+#endif
     _u64                 chunk_size;
     _u64                 n_chunks;
     FixedChunkPQTable<T> pq_table;

@@ -60,4 +60,5 @@ template<typename T>
 int generate_pq_data_from_pivots(const std::string data_file,
                                  unsigned num_centers, unsigned num_pq_chunks,
                                  std::string pq_pivots_path,
-                                 std::string pq_compressed_vectors_path);
+                                 std::string pq_compressed_vectors_path,
+                                 size_t cdf_len);

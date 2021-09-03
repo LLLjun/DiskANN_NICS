@@ -35,6 +35,10 @@
 #include <xmmintrin.h>
 #endif
 
+#ifndef DOUBLEPQ
+#define DOUBLEPQ
+#endif
+
 #define BLOCK_SIZE 5000000
 
 template<typename T>
@@ -181,7 +185,10 @@ void gen_random_slice(const T *inputdata, size_t npts, size_t ndims,
     }
   }
 }
-
+inline bool custom_dist(const std::pair<uint32_t, float> &a,
+                        const std::pair<uint32_t, float> &b) {
+  return a.second > b.second;
+}
 // given training data in train_data of dimensions num_train * dim, generate PQ
 // pivots using k-means algorithm to partition the co-ordinates into
 // num_pq_chunks (if it divides dimension, else rounded) chunks, and runs
@@ -211,11 +218,15 @@ int generate_pq_pivots(const float *passed_train_data, size_t num_train,
 
   std::unique_ptr<float[]> full_pivot_data;
 
-  if (file_exists(pq_pivots_path)) {
+  if (file_exists(pq_pivots_path)) {      // liujun. need to do 
     size_t file_dim, file_num_centers;
     diskann::load_bin<float>(pq_pivots_path, full_pivot_data, file_num_centers,
                              file_dim);
+#ifdef DOUBLEPQ
+    if (file_dim == dim && file_num_centers == (2 * num_centers)) {
+#else
     if (file_dim == dim && file_num_centers == num_centers) {
+#endif
       diskann::cout << "PQ pivot file exists. Not generating again"
                     << std::endl;
       return -1;
@@ -298,8 +309,12 @@ int generate_pq_pivots(const float *passed_train_data, size_t num_train,
   for (auto p : rearrangement)
     diskann::cout << p << " ";
   diskann::cout << std::endl;
-
+  // liujun.
+#ifdef DOUBLEPQ
+  full_pivot_data.reset(new float[2 * num_centers * dim]);
+#else
   full_pivot_data.reset(new float[num_centers * dim]);
+#endif
 
   for (size_t i = 0; i < num_pq_chunks; i++) {
     size_t cur_chunk_size = chunk_offsets[i + 1] - chunk_offsets[i];
@@ -336,11 +351,71 @@ int generate_pq_pivots(const float *passed_train_data, size_t num_train,
                   cur_pivot_data.get() + j * cur_chunk_size,
                   cur_chunk_size * sizeof(float));
     }
+    // liujun. for code book B
+#ifdef DOUBLEPQ
+    std::vector<std::vector<std::pair<uint32_t, float>>> center_to_idx(256);
+    std::vector<uint32_t> need_retrain_data;
+
+    for (int64_t j = 0; j < (_s64) num_train; j++) {
+      uint32_t pivot_id = closest_center[j];
+      float dist_j = math_utils::calc_distance(cur_data.get() + j * cur_chunk_size, 
+                      cur_pivot_data.get() + j * cur_chunk_size, cur_chunk_size);
+      center_to_idx[pivot_id].push_back(std::make_pair(j, dist_j));
+    }
+
+    for (uint32_t i = 0; i < num_centers; i++){
+      std::sort(center_to_idx[i].begin(), center_to_idx[i].end(), custom_dist);
+      // diskann::cout << "begin dist:" << center_to_idx[i][0].second <<
+      // "  end dist:" << center_to_idx[i][center_to_idx[i].size()-1].second
+      // << std::endl;
+      size_t tmp_len = center_to_idx[i].size() / 2;
+      size_t tmp_i = 0;
+      while(tmp_i < tmp_len){
+        need_retrain_data.push_back(center_to_idx[i][tmp_i].first);
+        tmp_i++;
+      }
+    }
+    size_t num_train_b = need_retrain_data.size();
+    diskann::cout << "Processing chunk " << i << " need to retrain point: "
+              << num_train_b << std::endl;
+
+    std::unique_ptr<float[]> cur_pivot_data_b =
+        std::make_unique<float[]>(num_centers * cur_chunk_size);
+    std::unique_ptr<float[]> cur_data_b =
+        std::make_unique<float[]>(num_train_b * cur_chunk_size);
+    std::unique_ptr<uint32_t[]> closest_center_b =
+        std::make_unique<uint32_t[]>(num_train_b);
+
+#pragma omp parallel for schedule(static, 65536)
+    for (int64_t j = 0; j < (_s64) num_train_b; j++) {
+      std::memcpy(cur_data_b.get() + j * cur_chunk_size,
+                  train_data.get() + need_retrain_data[j] * dim + chunk_offsets[i],
+                  cur_chunk_size * sizeof(float));
+    }
+
+    kmeans::kmeanspp_selecting_pivots(cur_data_b.get(), num_train_b, cur_chunk_size,
+                                      cur_pivot_data_b.get(), num_centers);
+
+    kmeans::run_lloyds(cur_data_b.get(), num_train_b, cur_chunk_size,
+                       cur_pivot_data_b.get(), num_centers, max_k_means_reps,
+                       NULL, closest_center_b.get());
+
+    for (uint64_t j = 0; j < num_centers; j++) {
+      std::memcpy(full_pivot_data.get() + (num_centers + j) * dim + chunk_offsets[i],
+                  cur_pivot_data_b.get() + j * cur_chunk_size,
+                  cur_chunk_size * sizeof(float));
+    }
+#endif
   }
 
   // full_pivot_data：float型的聚类中心，大小为num_centers * dim
+#ifdef DOUBLEPQ
+  diskann::save_bin<float>(pq_pivots_path.c_str(), full_pivot_data.get(),
+                           (size_t) (2 * num_centers), dim);
+#else
   diskann::save_bin<float>(pq_pivots_path.c_str(), full_pivot_data.get(),
                            (size_t) num_centers, dim);
+#endif
   std::string centroids_path = pq_pivots_path + "_centroid.bin"; // 原始数据的中心点
   diskann::save_bin<float>(centroids_path.c_str(), centroid.get(), (size_t) dim,
                            1);
@@ -362,7 +437,8 @@ template<typename T>
 int generate_pq_data_from_pivots(const std::string data_file,
                                  unsigned num_centers, unsigned num_pq_chunks,
                                  std::string pq_pivots_path,
-                                 std::string pq_compressed_vectors_path) {
+                                 std::string pq_compressed_vectors_path,
+                                 size_t cdf_len) {
   _u64            read_blk_size = 64 * 1024 * 1024;
   cached_ifstream base_reader(data_file, read_blk_size);
   _u32            npts32;
@@ -434,19 +510,33 @@ int generate_pq_data_from_pivots(const std::string data_file,
     }
     diskann::cout << "Loaded PQ pivot information" << std::endl;
   }
-
   std::ofstream compressed_file_writer(pq_compressed_vectors_path,
                                        std::ios::binary);
   _u32 num_pq_chunks_u32 = num_pq_chunks;
 
   compressed_file_writer.write((char *) &num_points, sizeof(uint32_t));
   compressed_file_writer.write((char *) &num_pq_chunks_u32, sizeof(uint32_t));
+#ifdef DOUBLEPQ
+  std::string pq_compressed_codeflag_path = pq_compressed_vectors_path + "_codeflag.bin";
+  std::ofstream codeflag_file_writer(pq_compressed_codeflag_path,
+                                       std::ios::binary);
+
+  codeflag_file_writer.write((char *) &num_points, sizeof(uint32_t));
+  codeflag_file_writer.write((char *) &cdf_len, sizeof(uint32_t));
+#endif
 
   size_t block_size = num_points <= BLOCK_SIZE ? num_points : BLOCK_SIZE;
   std::unique_ptr<_u32[]> block_compressed_base =
       std::make_unique<_u32[]>(block_size * (_u64) num_pq_chunks);
   std::memset(block_compressed_base.get(), 0,
               block_size * (_u64) num_pq_chunks * sizeof(uint32_t));
+#ifdef DOUBLEPQ
+  std::unique_ptr<_u8[]> block_compressed_cdflag =
+      std::make_unique<_u8[]>(block_size * (_u64) cdf_len);
+  std::memset(block_compressed_cdflag.get(), 0,
+              block_size * (_u64) cdf_len * sizeof(uint8_t));
+  _u8 dcpq_bit_to_value[8] = {128, 64, 32, 16, 8, 4, 2, 1};
+#endif
 
   std::unique_ptr<T[]> block_data_T = std::make_unique<T[]>(block_size * dim);
   std::unique_ptr<float[]> block_data_float =
@@ -455,6 +545,9 @@ int generate_pq_data_from_pivots(const std::string data_file,
       std::make_unique<float[]>(block_size * dim);
 
   size_t num_blocks = DIV_ROUND_UP(num_points, block_size);
+
+  double quant_err = 0;
+  size_t quant_num = 0;
 
   for (size_t block = 0; block < num_blocks; block++) {
     size_t start_id = block * block_size;
@@ -475,7 +568,7 @@ int generate_pq_data_from_pivots(const std::string data_file,
       }
     }
 
-    for (uint64_t p = 0; p < cur_blk_size; p++) {
+    for (uint64_t p = 0; p < cur_blk_size; p++) {   // 解决某些情况下维度映射不一致的问题
       for (uint64_t d = 0; d < dim; d++) {
         block_data_float[p * dim + d] =
             block_data_tmp[p * dim + rearrangement[d]];
@@ -511,18 +604,45 @@ int generate_pq_data_from_pivots(const std::string data_file,
       math_utils::compute_closest_centers(cur_data.get(), cur_blk_size,
                                           cur_chunk_size, cur_pivot_data.get(),
                                           num_centers, 1, closest_center.get());
+      // debug
+      for (uint64_t j = 0; j < cur_blk_size; j++){
+        // for (uint64_t k = 0; k < cur_chunk_size; k++){
+        //   printf("%6f\t", cur_data[j * cur_chunk_size + k]);
+        // }
+        // printf("=>\t%d\t=>\t", closest_center[j]);
+        for (uint64_t k = 0; k < cur_chunk_size; k++){
+          // printf("%6f\t", cur_pivot_data[closest_center[j] * cur_chunk_size + k]);
+          quant_err += (double)powf32((cur_data[j * cur_chunk_size + k] - cur_pivot_data[closest_center[j] * cur_chunk_size + k]), 2);
+        }
+      }
+      quant_num += (cur_blk_size * cur_chunk_size);
 
+#ifdef DOUBLEPQ
+      _u8 flag_id = (_u8) (i / 8);
+      _u8 bit_id = (_u8) (i % 8);
+      _u8 flag_add = dcpq_bit_to_value[bit_id];
+      for (int64_t j = 0; j < (_s64) cur_blk_size; j++) {
+        if (closest_center[j] >= 256){
+          block_compressed_cdflag[j * cdf_len + flag_id] += flag_add;
+          closest_center[j] -= 256;
+        }
+      }
+#endif
 #pragma omp parallel for schedule(static, 8192)
       for (int64_t j = 0; j < (_s64) cur_blk_size; j++) {
         block_compressed_base[j * num_pq_chunks + i] = closest_center[j];
       }
     }
 
+#ifndef DOUBLEPQ
     if (num_centers > 256) {            // 支持大于256类
       compressed_file_writer.write(
           (char *) (block_compressed_base.get()),
           cur_blk_size * num_pq_chunks * sizeof(uint32_t));
     } else {
+#else
+    {
+#endif
       std::unique_ptr<uint8_t[]> pVec =
           std::make_unique<uint8_t[]>(cur_blk_size * num_pq_chunks);
       diskann::convert_types<uint32_t, uint8_t>(
@@ -530,15 +650,23 @@ int generate_pq_data_from_pivots(const std::string data_file,
       compressed_file_writer.write(
           (char *) (pVec.get()),
           cur_blk_size * num_pq_chunks * sizeof(uint8_t));
+#ifdef DOUBLEPQ
+      codeflag_file_writer.write((char *)(block_compressed_cdflag.get()),
+          cur_blk_size * cdf_len * sizeof(uint8_t));
+#endif
     }
     diskann::cout << ".done." << std::endl;
   }
+  printf("Quant Error: %.2lf, Num: %lu\n", quant_err, quant_num);
 // Gopal. Splittng diskann_dll into separate DLLs for search and build.
 // This code should only be available in the "build" DLL.
 #ifdef DISKANN_BUILD
   MallocExtension::instance()->ReleaseFreeMemory();
 #endif
   compressed_file_writer.close();
+#ifdef DOUBLEPQ
+  codeflag_file_writer.close();
+#endif
   return 0;
 }
 
@@ -894,10 +1022,10 @@ template DISKANN_DLLEXPORT int partition_with_ram_budget<float>(
 
 template DISKANN_DLLEXPORT int generate_pq_data_from_pivots<int8_t>(
     const std::string data_file, unsigned num_centers, unsigned num_pq_chunks,
-    std::string pq_pivots_path, std::string pq_compressed_vectors_path);
+    std::string pq_pivots_path, std::string pq_compressed_vectors_path, size_t cdf_len=0);
 template DISKANN_DLLEXPORT int generate_pq_data_from_pivots<uint8_t>(
     const std::string data_file, unsigned num_centers, unsigned num_pq_chunks,
-    std::string pq_pivots_path, std::string pq_compressed_vectors_path);
+    std::string pq_pivots_path, std::string pq_compressed_vectors_path, size_t cdf_len=0);
 template DISKANN_DLLEXPORT int generate_pq_data_from_pivots<float>(
     const std::string data_file, unsigned num_centers, unsigned num_pq_chunks,
-    std::string pq_pivots_path, std::string pq_compressed_vectors_path);
+    std::string pq_pivots_path, std::string pq_compressed_vectors_path, size_t cdf_len=0);
