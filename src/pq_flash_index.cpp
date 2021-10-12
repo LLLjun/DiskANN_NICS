@@ -836,7 +836,7 @@ namespace diskann {
                                            float *     distances,
                                            const _u64  beam_width,
                                            QueryStats *stats,
-                                           bool isOptend, float wide_p, bool isdebug) {
+                                           bool isOptend, unsigned limit_hop, bool isdebug) {
     ThreadData<T> data = this->thread_data.pop();
     while (data.scratch.sector_scratch == nullptr) {
       this->thread_data.wait_for_push_notify();
@@ -950,35 +950,20 @@ namespace diskann {
         cached_nhoods;
 
 #ifdef OPTEND
-    // float wide_p = WIDEP;
-    float bound_l, bound_k;
-    float dist_marker;
-    bound_l = retset[0].distance;
-    bound_k = retset[0].distance;
-    if (isdebug)
-      printf("start, bound_l: %.3f, bound_k: %.3f \n", bound_l, bound_k);
-#endif
-#ifdef HE
+    float bound_l;
     float last_bound_l = 0;
     unsigned non_hop = 0;
+    bound_l = retset[0].distance;
+    // if (isdebug)
+    //   printf("start, bound_l: %.3f, bound_k: %.3f \n", bound_l, bound_k);
 #endif
-
 
     while (k < cur_list_size) {
       auto nk = cur_list_size;
-#ifdef HE
-      if (non_hop >= 2)
-        break;
-#endif
-
 
 #ifdef OPTEND
-      // todo: use full_set?
-      dist_marker = retset[k].distance;
-      if (isOptend){
-        if (dist_marker > (bound_k * wide_p + bound_l * (1.0 - wide_p)))
-          break;
-      }
+      if (isOptend && (non_hop >= limit_hop))
+        break;
       if (isdebug)
         printf("hop: %u, non_hop: %u \n", hops, non_hop);
 #endif
@@ -998,15 +983,6 @@ namespace diskann {
       while (marker < cur_list_size && frontier.size() < beam_width &&
              num_seen < beam_width + 2) {
         if (retset[marker].flag) {
-#ifdef OPTEND
-          // todo: use full_set?
-          dist_marker = retset[marker].distance;
-          if (isOptend){
-            if (dist_marker > (bound_k * wide_p + bound_l * (1.0 - wide_p)))
-              break;
-          }
-#endif
-
           num_seen++;
           auto iter = nhood_cache.find(retset[marker].id);
           if (iter != nhood_cache.end()) {
@@ -1116,12 +1092,8 @@ namespace diskann {
 
 #ifdef OPTEND
             bound_l = retset[cur_list_size - 1].distance;
-            if (cur_list_size < 10)
-              bound_k = bound_l;
-            else
-              bound_k = retset[9].distance;
-            if (isdebug)
-              printf("cached, bound_l: %.3f, bound_k: %.3f \n", bound_l, bound_k);
+            // if (isdebug)
+            //   printf("cached, bound_l: %.3f, bound_k: %.3f \n", bound_l, bound_k);
 #endif
           }
         }
@@ -1211,12 +1183,8 @@ namespace diskann {
                        // due to neighbors of n.
 #ifdef OPTEND
             bound_l = retset[cur_list_size - 1].distance;
-            if (cur_list_size < 10)
-              bound_k = bound_l;
-            else
-              bound_k = retset[9].distance;
-            if (isdebug)
-              printf("cached, bound_l: %.3f, bound_k: %.3f \n", bound_l, bound_k);
+            // if (isdebug)
+            //   printf("cached, bound_l: %.3f, bound_k: %.3f \n", bound_l, bound_k);
 #endif
           }
         }
@@ -1226,7 +1194,7 @@ namespace diskann {
         }
       }
 
-#ifdef HE
+#ifdef OPTEND
       if (bound_l == last_bound_l)
         non_hop++;
       else

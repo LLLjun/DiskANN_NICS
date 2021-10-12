@@ -116,7 +116,7 @@ namespace diskann {
     // implemented
     DISKANN_DLLEXPORT void cached_beam_search(
         const T *query, const _u64 k_search, const _u64 l_search, _u64 *res_ids,
-        float *res_dists, const _u64 beam_width, QueryStats *stats = nullptr, bool isOptend = false, float wide_p = 0, bool isdebug = false);
+        float *res_dists, const _u64 beam_width, QueryStats *stats = nullptr, bool isOptend = false, unsigned limit_hop = 0, bool isdebug = false);
 
 
   DISKANN_DLLEXPORT _u32 range_search(const T *query1, const double range,
