@@ -36,7 +36,7 @@
 #define READ_UNSIGNED(stream, val) stream.read((char *) &val, sizeof(unsigned))
 
 // sector # on disk where node_id is present
-#define NODE_SECTOR_NO(node_id) (((_u64)(node_id)) / nnodes_per_sector + 1)
+#define NODE_SECTOR_NO(node_id) (((_u64) (node_id)) / nnodes_per_sector + 1)
 
 // obtains region of sector containing node
 #define OFFSET_TO_NODE(sector_buf, node_id) \
@@ -789,7 +789,7 @@ namespace diskann {
     } else {
       num_medoids = 1;
       medoids = new uint32_t[1];
-      medoids[0] = (_u32)(medoid_id_on_file);
+      medoids[0] = (_u32) (medoid_id_on_file);
       use_medoids_data_as_centroids();
     }
 
@@ -826,24 +826,26 @@ namespace diskann {
   }
 #endif
 
-/*
-  liujun. add Optimized end condition
-*/
+  /*
+    liujun. add Optimized end condition
+  */
 
   template<typename T>
-  void PQFlashIndex<T>::cached_beam_search(const T *query1, const _u64 k_search,
-                                           const _u64 l_search, _u64 *indices,
-                                           float *     distances,
-                                           const _u64  beam_width,
-                                           QueryStats *stats,
-                                           bool isOptend, unsigned limit_hop, bool isdebug) {
+  void PQFlashIndex<T>::cached_beam_search(
+      const T *query1, const _u64 k_search, const _u64 l_search, _u64 *indices,
+      float *distances, const _u64 beam_width, QueryStats *stats, bool isOptend,
+      unsigned limit_hop, bool isdebug, bool isSmag, float thsd,
+      unsigned *small_graph, unsigned num_nbrs) {
     ThreadData<T> data = this->thread_data.pop();
     while (data.scratch.sector_scratch == nullptr) {
       this->thread_data.wait_for_push_notify();
       data = this->thread_data.pop();
     }
 
-//std::cout<<l_search<<" ";
+    if (!isSmag)
+      thsd = __FLT_MAX__;
+
+    // std::cout<<l_search<<" ";
     // copy query to thread specific aligned and allocated memory (for distance
     // calculations we need aligned data)
 
@@ -949,9 +951,9 @@ namespace diskann {
     std::vector<std::pair<unsigned, std::pair<unsigned, unsigned *>>>
         cached_nhoods;
 
-#ifdef OPTEND
-    float bound_l;
-    float last_bound_l = 0;
+#if OPTEND
+    float    bound_l;
+    float    last_bound_l = 0;
     unsigned non_hop = 0;
     bound_l = retset[0].distance;
     // if (isdebug)
@@ -961,7 +963,7 @@ namespace diskann {
     while (k < cur_list_size) {
       auto nk = cur_list_size;
 
-#ifdef OPTEND
+#if OPTEND
       if (isOptend && (non_hop >= limit_hop))
         break;
       if (isdebug)
@@ -1015,14 +1017,20 @@ namespace diskann {
           fnhood.second = sector_scratch + sector_scratch_idx * SECTOR_LEN;
           sector_scratch_idx++;
           frontier_nhoods.push_back(fnhood);
-          frontier_read_reqs.emplace_back(
-              NODE_SECTOR_NO(((size_t) id)) * SECTOR_LEN, SECTOR_LEN,
-              fnhood.second);
-          if (stats != nullptr) {
-            stats->n_4k++;
-            stats->n_ios++;
+
+          if (isSmag) {
+            compute_dists(&id, 1, dist_scratch);
           }
-          num_ios++;
+          if (!isSmag || (dist_scratch[0] < thsd)) {
+            frontier_read_reqs.emplace_back(
+                NODE_SECTOR_NO(((size_t) id)) * SECTOR_LEN, SECTOR_LEN,
+                fnhood.second);
+            if (stats != nullptr) {
+              stats->n_4k++;
+              stats->n_ios++;
+            }
+            num_ios++;
+          }
         }
         io_timer.reset();
 #ifdef USE_BING_INFRA
@@ -1052,7 +1060,7 @@ namespace diskann {
                 query_float, (_u8 *) node_fp_coords_copy);
         }
         full_retset.push_back(
-            Neighbor((unsigned) cached_nhood.first, cur_expanded_dist, true));    // full_retset 也是不准确的距离呀
+            Neighbor((unsigned) cached_nhood.first, cur_expanded_dist, true));
 
         _u64      nnbrs = cached_nhood.second.first;
         unsigned *node_nbrs = cached_nhood.second.second;
@@ -1087,13 +1095,14 @@ namespace diskann {
               ++cur_list_size;
             if (r < nk)
               nk = r;  // nk logs the best position in the retset that was
-            // updated
-            // due to neighbors of n.
+                       // updated
+                       // due to neighbors of n.
 
-#ifdef OPTEND
+#if OPTEND
             bound_l = retset[cur_list_size - 1].distance;
             // if (isdebug)
-            //   printf("cached, bound_l: %.3f, bound_k: %.3f \n", bound_l, bound_k);
+            //   printf("cached, bound_l: %.3f, bound_k: %.3f \n", bound_l,
+            //   bound_k);
 #endif
           }
         }
@@ -1115,35 +1124,46 @@ namespace diskann {
 #else
       for (auto &frontier_nhood : frontier_nhoods) {
 #endif
-        char *node_disk_buf =
-            OFFSET_TO_NODE(frontier_nhood.second, frontier_nhood.first);
-        unsigned *node_buf = OFFSET_TO_NODE_NHOOD(node_disk_buf);
-        _u64      nnbrs = (_u64)(*node_buf);
-        T *       node_fp_coords = OFFSET_TO_NODE_COORDS(node_disk_buf);
-//        assert(data_buf_idx < MAX_N_CMPS);
-        if (data_buf_idx == MAX_N_CMPS)
-          data_buf_idx = 0;
-
-        T *node_fp_coords_copy = data_buf + (data_buf_idx * aligned_dim);
-        data_buf_idx++;
-        memcpy(node_fp_coords_copy, node_fp_coords, disk_bytes_per_point);
-
-        float cur_expanded_dist;
-        if (!use_disk_index_pq) {
-          cur_expanded_dist = dist_cmp->compare(query, node_fp_coords_copy,
-                                                (unsigned) aligned_dim);
-        } else {
-          if (metric == diskann::Metric::INNER_PRODUCT)
-            cur_expanded_dist = disk_pq_table.inner_product(
-                query_float, (_u8 *) node_fp_coords_copy);
-          else
-            cur_expanded_dist = disk_pq_table.l2_distance(
-                query_float, (_u8 *) node_fp_coords_copy);
+        _u64      nnbrs;
+        unsigned *node_nbrs;
+        if (isSmag) {
+          compute_dists(&frontier_nhood.first, 1, dist_scratch);
         }
-        full_retset.push_back(
-            Neighbor(frontier_nhood.first, cur_expanded_dist, true));
+        if (!isSmag || (dist_scratch[0] < thsd)) {
+          char *node_disk_buf =
+              OFFSET_TO_NODE(frontier_nhood.second, frontier_nhood.first);
+          unsigned *node_buf = OFFSET_TO_NODE_NHOOD(node_disk_buf);
+          nnbrs = (_u64) (*node_buf);
+          T *node_fp_coords = OFFSET_TO_NODE_COORDS(node_disk_buf);
+          //        assert(data_buf_idx < MAX_N_CMPS);
+          if (data_buf_idx == MAX_N_CMPS)
+            data_buf_idx = 0;
 
-        unsigned *node_nbrs = (node_buf + 1);
+          T *node_fp_coords_copy = data_buf + (data_buf_idx * aligned_dim);
+          data_buf_idx++;
+          memcpy(node_fp_coords_copy, node_fp_coords, disk_bytes_per_point);
+
+          float cur_expanded_dist;
+          if (!use_disk_index_pq) {
+            cur_expanded_dist = dist_cmp->compare(query, node_fp_coords_copy,
+                                                  (unsigned) aligned_dim);
+          } else {
+            if (metric == diskann::Metric::INNER_PRODUCT)
+              cur_expanded_dist = disk_pq_table.inner_product(
+                  query_float, (_u8 *) node_fp_coords_copy);
+            else
+              cur_expanded_dist = disk_pq_table.l2_distance(
+                  query_float, (_u8 *) node_fp_coords_copy);
+          }
+          full_retset.push_back(
+              Neighbor(frontier_nhood.first, cur_expanded_dist, true));
+
+          node_nbrs = (node_buf + 1);
+        } else {
+          nnbrs = num_nbrs;
+          // node_nbrs = &small_graph[frontier_nhood.first * num_nbrs];
+          node_nbrs = small_graph + frontier_nhood.first * num_nbrs;
+        }
         // compute node_nbrs <-> query dist in PQ space
         cpu_timer.reset();
         compute_dists(node_nbrs, nnbrs, dist_scratch);
@@ -1181,10 +1201,11 @@ namespace diskann {
               nk = r;  // nk logs the best position in the retset that was
                        // updated
                        // due to neighbors of n.
-#ifdef OPTEND
+#if OPTEND
             bound_l = retset[cur_list_size - 1].distance;
             // if (isdebug)
-            //   printf("cached, bound_l: %.3f, bound_k: %.3f \n", bound_l, bound_k);
+            //   printf("cached, bound_l: %.3f, bound_k: %.3f \n", bound_l,
+            //   bound_k);
 #endif
           }
         }
@@ -1194,7 +1215,7 @@ namespace diskann {
         }
       }
 
-#ifdef OPTEND
+#if OPTEND
       if (bound_l == last_bound_l)
         non_hop++;
       else
@@ -1252,10 +1273,11 @@ namespace diskann {
     }
   }
 
-// range search returns results of all neighbors within distance of range. indices and distances need to be pre-allocated of size l_search
-// and the return value is the number of matching hits.
+  // range search returns results of all neighbors within distance of range.
+  // indices and distances need to be pre-allocated of size l_search and the
+  // return value is the number of matching hits.
 
-template<typename T>
+  template<typename T>
   _u32 PQFlashIndex<T>::range_search(const T *query1, const double range,
                                      const _u64          min_l_search,
                                      const _u64          max_l_search,
@@ -1285,7 +1307,7 @@ template<typename T>
         } else if (i == l_search - 1)
           res_count = l_search;
       }
-      if (res_count < (_u32)(l_search / 2.0))
+      if (res_count < (_u32) (l_search / 2.0))
         stop_flag = true;
       l_search = l_search * 2;
       if (l_search > max_l_search)

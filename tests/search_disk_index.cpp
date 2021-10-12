@@ -90,6 +90,7 @@ int search_disk_index(int argc, char** argv) {
   std::string truthset_bin(argv[ctr++]);
   _u64        recall_at = std::atoi(argv[ctr++]);
   std::string result_output_prefix(argv[ctr++]);
+  std::string data_name(argv[ctr++]);
 
   bool calc_recall_flag = false;
 
@@ -125,6 +126,27 @@ int search_disk_index(int argc, char** argv) {
     calc_recall_flag = true;
   }
 
+  bool      isSmag = SMAG;
+  float     thsd;
+  unsigned  num_nbrs = 4;
+  unsigned* small_graph = nullptr;
+
+  // todo
+  if (data_name == "BIGANN") {
+    thsd = 100000;
+  } else if (data_name == "SSN") {
+    thsd = 1000;
+  } else if (data_name == "Turing") {
+    thsd = 1000;
+  } else if (data_name == "SPACEV") {
+    thsd = 1000;
+  } else if (data_name == "DEEP") {
+    thsd = 1;
+  } else {
+    thsd = __FLT_MAX__;
+    isSmag = false;
+  }
+
   std::shared_ptr<AlignedFileReader> reader = nullptr;
 #ifdef _WINDOWS
 #ifndef USE_BING_INFRA
@@ -144,6 +166,53 @@ int search_disk_index(int argc, char** argv) {
 
   if (res != 0) {
     return res;
+  }
+
+  if (isSmag) {
+    printf("Start Loading Small Graph.\n");
+    unsigned total_num_points = _pFlashIndex->num_points;
+    num_nbrs = 4;
+    small_graph =
+        (unsigned*) malloc(total_num_points * num_nbrs * sizeof(unsigned));
+
+    std::string small_graph_path = disk_index_file + "_smag.bin";
+    // std::string small_graph_path = index_prefix_path + "_small_graph.bin";
+
+    if (file_exists(small_graph_path)) {
+      LoadBinToArray<unsigned>(small_graph_path, small_graph, total_num_points,
+                               num_nbrs);
+    }
+    // todo
+    // else{
+    //   printf("Error, need file %s \n", small_graph_path.c_str());
+    //   exit(1);
+    // }
+    else {
+      std::ifstream file_reader(disk_index_file.c_str(), std::ios::binary);
+      unsigned      L;
+      unsigned      len_data_type;
+      if (std::string(argv[1]) == std::string("float"))
+        len_data_type = 4;
+      else
+        len_data_type = 1;
+
+      for (uint32_t i = 0; i < total_num_points; i++) {
+        uint64_t shift =
+            4096 * (1 + i / _pFlashIndex->nnodes_per_sector) +
+            (i % _pFlashIndex->nnodes_per_sector) * _pFlashIndex->max_node_len +
+            _pFlashIndex->data_dim * len_data_type;
+        file_reader.seekg(shift, std::ios::beg);
+        file_reader.read((char*) &L, sizeof(unsigned));
+        file_reader.seekg((L - num_nbrs) * sizeof(unsigned), std::ios::cur);
+        file_reader.read((char*) (small_graph + i * num_nbrs),
+                         num_nbrs * sizeof(unsigned));
+      }
+
+      file_reader.close();
+      WriteBinToArray<unsigned>(small_graph_path, small_graph, total_num_points,
+                                num_nbrs);
+    }
+    printf("Load Small Graph from %s done.\n", disk_index_file.c_str());
   }
   // cache bfs levels
   std::vector<uint32_t> node_list;
@@ -201,11 +270,27 @@ int search_disk_index(int argc, char** argv) {
   diskann::cout.precision(2);
 
   std::string recall_string = "Recall@" + std::to_string(recall_at);
+
+#ifdef TEST_FILE
+  std::ofstream ofile;
+  ofile.open("result.txt", std::ios_base::app);
+
+  ofile << std::setw(6) << "L" << std::setw(12) << "Beamwidth" << std::setw(16)
+        << "QPS" << std::setw(16) << "Mean Latency" << std::setw(16)
+        << "99.9 Latency" << std::setw(16) << "Mean IOs" << std::setw(16)
+        << "CPU (s)";
+#endif
+
+  // std::string recall_string = "Recall@" + std::to_string(recall_at);
   diskann::cout << std::setw(6) << "L" << std::setw(12) << "Beamwidth"
                 << std::setw(16) << "QPS" << std::setw(16) << "Mean Latency"
                 << std::setw(16) << "99.9 Latency" << std::setw(16)
-                << "Mean IOs" << std::setw(16) << "CPU (s)";
+                << "Mean IOs" << std::setw(16)
+                << "CPU (s)";
   if (calc_recall_flag) {
+#ifdef TEST_FILE
+    ofile << std::setw(16) << recall_string << std::endl;
+#endif
     diskann::cout << std::setw(16) << recall_string << std::endl;
   } else
     diskann::cout << std::endl;
@@ -239,12 +324,12 @@ int search_disk_index(int argc, char** argv) {
     auto                  s = std::chrono::high_resolution_clock::now();
 #pragma omp parallel for schedule(dynamic, 1)
     for (_s64 i = 0; i < (int64_t) query_num; i++) {
-      // for (_s64 i = 100; i < (int64_t) 110; i++) {
       _pFlashIndex->cached_beam_search(
           query + (i * query_aligned_dim), recall_at, L,
           query_result_ids_64.data() + (i * recall_at),
           query_result_dists[test_id].data() + (i * recall_at),
-          optimized_beamwidth, stats + i, true, HE, false);
+          optimized_beamwidth, stats + i, OPTEND, HE, false, isSmag, thsd,
+          small_graph, num_nbrs);
     }
     auto                          e = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> diff = e - s;
@@ -281,11 +366,21 @@ int search_disk_index(int argc, char** argv) {
         stats, query_num,
         [](const diskann::QueryStats& stats) { return stats.n_hops; });
 
+#ifdef TEST_FILE
+    ofile << std::setw(6) << L << std::setw(12) << optimized_beamwidth
+          << std::setw(16) << qps << std::setw(16) << mean_latency
+          << std::setw(16) << latency_999 << std::setw(16) << mean_ios
+          << std::setw(16) << mean_cpuus;
+#endif
+
     diskann::cout << std::setw(6) << L << std::setw(12) << optimized_beamwidth
                   << std::setw(16) << qps << std::setw(16) << mean_latency
                   << std::setw(16) << latency_999 << std::setw(16) << mean_ios
                   << std::setw(16) << mean_cpuus;
     if (calc_recall_flag) {
+#ifdef TEST_FILE
+      ofile << std::setw(16) << recall_string << std::endl;
+#endif
       diskann::cout << std::setw(16) << recall << std::setw(16) << mean_hops
                     << std::endl;
     } else
@@ -314,7 +409,7 @@ int search_disk_index(int argc, char** argv) {
 }
 
 int main(int argc, char** argv) {
-  if (argc < 12) {
+  if (argc < 13) {
     diskann::cout
         << "Usage: " << argv[0]
         << "  [index_type<float/int8/uint8>]  [dist_fn<l2/mips>] "
@@ -323,6 +418,7 @@ int main(int argc, char** argv) {
            "optimize internally)] "
            " [query_file.bin]  [truthset.bin (use \"null\" for none)] "
            " [K]  [result_output_prefix] "
+           " [data_name]  [data_set_name] "
            " [L1]  [L2] etc.  See README for more information on parameters."
         << std::endl;
     exit(-1);

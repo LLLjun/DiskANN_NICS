@@ -70,8 +70,9 @@ namespace diskann {
     return total_recall / (num_queries) * (100.0 / recall_at);
   }
 
-  double calculate_range_search_recall(unsigned num_queries, std::vector<std::vector<_u32>> &groundtruth,
-                          std::vector<std::vector<_u32>> &our_results) {
+  double calculate_range_search_recall(
+      unsigned num_queries, std::vector<std::vector<_u32>> &groundtruth,
+      std::vector<std::vector<_u32>> &our_results) {
     double             total_recall = 0;
     std::set<unsigned> gt, res;
 
@@ -80,7 +81,7 @@ namespace diskann {
       res.clear();
 
       gt.insert(groundtruth[i].begin(), groundtruth[i].end());
-      res.insert(our_results[i].begin(), our_results[i].end()); 
+      res.insert(our_results[i].begin(), our_results[i].end());
       unsigned cur_recall = 0;
       for (auto &v : gt) {
         if (res.find(v) != res.end()) {
@@ -88,9 +89,9 @@ namespace diskann {
         }
       }
       if (gt.size() != 0)
-      total_recall += ((100.0*cur_recall)/gt.size());
+        total_recall += ((100.0 * cur_recall) / gt.size());
       else
-      total_recall += 100;
+        total_recall += 100;
     }
     return total_recall / (num_queries);
   }
@@ -503,7 +504,7 @@ namespace diskann {
       if (qps > max_qps && lat_999 < (15000) + mean_latency * 2) {
         max_qps = qps;
         best_bw = cur_bw;
-        cur_bw = (uint32_t)(std::ceil)((float) cur_bw * 1.1);
+        cur_bw = (uint32_t) (std::ceil)((float) cur_bw * 1.1);
       } else {
         stop_flag = true;
       }
@@ -536,6 +537,12 @@ namespace diskann {
     size_t          actual_file_size = get_file_size(mem_index_file);
     cached_ifstream vamana_reader(mem_index_file, read_blk_size);
     cached_ofstream diskann_writer(output_file, write_blk_size);
+
+#ifdef SMAG
+    std::string smag_path = output_file + "_smag.bin";
+    unsigned    len_smag = LEN_SMAG;
+    unsigned *  smag_list = new unsigned[npts * len_smag];
+#endif
 
     // metadata: width, medoid
     unsigned width_u32, medoid_u32;
@@ -610,6 +617,12 @@ namespace diskann {
         // read node's nhood
         vamana_reader.read((char *) nhood_buf, nnbrs * sizeof(unsigned));
 
+#ifdef SMAG
+        memcpy(smag_list + cur_node_id * len_smag,
+               nhood_buf + (nnbrs - len_smag) * sizeof(unsigned),
+               len_smag * sizeof(unsigned));
+#endif
+
         // write coords of node first
         //  T *node_coords = data + ((_u64) ndims_64 * cur_node_id);
         base_reader.read((char *) cur_node_coords.get(), sizeof(T) * ndims_64);
@@ -633,6 +646,9 @@ namespace diskann {
       // flush sector to disk
       diskann_writer.write(sector_buf.get(), SECTOR_LEN);
     }
+#ifdef SMAG
+    WriteBinToArray<unsigned>(smag_path, smag_list, npts, len_smag);
+#endif
     diskann::cout << "Output file written." << std::endl;
   }
 
@@ -752,7 +768,7 @@ namespace diskann {
     diskann::get_bin_metadata(data_file_to_use.c_str(), points_num, dim);
 
     size_t num_pq_chunks =
-        (size_t)(std::floor)(_u64(final_index_ram_limit / points_num));
+        (size_t) (std::floor)(_u64(final_index_ram_limit / points_num));
 
     num_pq_chunks = num_pq_chunks <= 0 ? 1 : num_pq_chunks;
     num_pq_chunks = num_pq_chunks > dim ? dim : num_pq_chunks;

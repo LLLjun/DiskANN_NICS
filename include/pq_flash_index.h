@@ -23,7 +23,7 @@
 #define MAX_N_SECTOR_READS 128
 #define MAX_PQ_CHUNKS 100
 
-#define OPTEND
+#define OPTEND true
 #define HE 2
 
 namespace diskann {
@@ -116,7 +116,10 @@ namespace diskann {
     // implemented
     DISKANN_DLLEXPORT void cached_beam_search(
         const T *query, const _u64 k_search, const _u64 l_search, _u64 *res_ids,
-        float *res_dists, const _u64 beam_width, QueryStats *stats = nullptr, bool isOptend = false, unsigned limit_hop = 0, bool isdebug = false);
+        float *res_dists, const _u64 beam_width, QueryStats *stats = nullptr, 
+        bool isOptend = false, unsigned limit_hop = 0, bool isdebug = false,
+        bool isSmag = false, float thsd = std::numeric_limits<float>::max(), 
+        unsigned* small_graph = nullptr, unsigned num_nbrs = 0);
 
 
   DISKANN_DLLEXPORT _u32 range_search(const T *query1, const double range,
@@ -133,7 +136,8 @@ namespace diskann {
     DISKANN_DLLEXPORT void setup_thread_data(_u64 nthreads);
     DISKANN_DLLEXPORT void destroy_thread_data();
 
-   private:
+   //private:
+   public:
     // index info
     // nhood of node `i` is in sector: [i / nnodes_per_sector]
     // offset in sector: [(i % nnodes_per_sector) * max_node_len]

@@ -30,6 +30,11 @@ typedef int FileHandle;
 #include "utils.h"
 #include "windows_customizations.h"
 #include "gperftools/malloc_extension.h"
+#include "iofile.h"
+
+#define SMAG true
+#define LEN_SMAG 4
+#define TEST_FILE
 
 namespace diskann {
   const size_t   TRAINING_SET_SIZE = 100000;
