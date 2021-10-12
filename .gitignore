@@ -359,3 +359,4 @@ cscope*
 
 build/
 result/
+.vscode/

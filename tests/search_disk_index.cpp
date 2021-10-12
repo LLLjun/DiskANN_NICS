@@ -230,60 +230,79 @@ int search_disk_index(int argc, char** argv) {
     } else
       optimized_beamwidth = beamwidth;
 
-    query_result_ids[test_id].resize(recall_at * query_num);
-    query_result_dists[test_id].resize(recall_at * query_num);
+#ifdef OPTEND
+    for (float wide_test = 0; wide_test <= 1.0; wide_test += 2){
+      (std::vector<uint32_t>()).swap(query_result_ids[test_id]);
+      (std::vector<float>()).swap(query_result_dists[test_id]);
+      // printf(" === wide test: %.2f === \n", wide_test);
+#else
+    for (float wide_test = 0; wide_test <= 0; wide_test += 0.1){
+#endif
 
-    diskann::QueryStats* stats = new diskann::QueryStats[query_num];
+      query_result_ids[test_id].resize(recall_at * query_num);
+      query_result_dists[test_id].resize(recall_at * query_num);
 
-    std::vector<uint64_t> query_result_ids_64(recall_at * query_num);
-    auto                  s = std::chrono::high_resolution_clock::now();
+      diskann::QueryStats* stats = new diskann::QueryStats[query_num];
+
+      std::vector<uint64_t> query_result_ids_64(recall_at * query_num);
+      auto                  s = std::chrono::high_resolution_clock::now();
 #pragma omp parallel for schedule(dynamic, 1)
-    for (_s64 i = 0; i < (int64_t) query_num; i++) {
-      _pFlashIndex->cached_beam_search(
-          query + (i * query_aligned_dim), recall_at, L,
-          query_result_ids_64.data() + (i * recall_at),
-          query_result_dists[test_id].data() + (i * recall_at),
-          optimized_beamwidth, stats + i);
+      for (_s64 i = 0; i < (int64_t) query_num; i++) {
+      // for (_s64 i = 100; i < (int64_t) 110; i++) {
+        _pFlashIndex->cached_beam_search(
+            query + (i * query_aligned_dim), recall_at, L,
+            query_result_ids_64.data() + (i * recall_at),
+            query_result_dists[test_id].data() + (i * recall_at),
+            optimized_beamwidth, stats + i, false, wide_test, false);
+      }
+      auto                          e = std::chrono::high_resolution_clock::now();
+      std::chrono::duration<double> diff = e - s;
+      float qps = (1.0 * query_num) / (1.0 * diff.count());
+
+      diskann::convert_types<uint64_t, uint32_t>(query_result_ids_64.data(),
+                                                query_result_ids[test_id].data(),
+                                                query_num, recall_at);
+
+      float mean_latency = diskann::get_mean_stats(
+          stats, query_num,
+          [](const diskann::QueryStats& stats) { return stats.total_us; });
+
+      float latency_999 = diskann::get_percentile_stats(
+          stats, query_num, 0.999,
+          [](const diskann::QueryStats& stats) { return stats.total_us; });
+
+      float mean_ios = diskann::get_mean_stats(
+          stats, query_num,
+          [](const diskann::QueryStats& stats) { return stats.n_ios; });
+
+      float mean_cpuus = diskann::get_mean_stats(
+          stats, query_num,
+          [](const diskann::QueryStats& stats) { return stats.cpu_us; });
+
+      float recall = 0;
+      if (calc_recall_flag) {
+        recall = diskann::calculate_recall(query_num, gt_ids, gt_dists, gt_dim,
+                                          query_result_ids[test_id].data(),
+                                          recall_at, recall_at);
+      }
+
+      float mean_hops = diskann::get_mean_stats(
+          stats, query_num,
+          [](const diskann::QueryStats& stats) { return stats.n_hops; });
+
+#ifdef OPTEND
+      diskann::cout << std::setw(6) << wide_test << std::setw(12) << optimized_beamwidth
+#else
+      diskann::cout << std::setw(6) << L << std::setw(12) << optimized_beamwidth
+#endif
+                    << std::setw(16) << qps << std::setw(16) << mean_latency
+                    << std::setw(16) << latency_999 << std::setw(16) << mean_ios
+                    << std::setw(16) << mean_cpuus;
+      if (calc_recall_flag) {
+        diskann::cout << std::setw(16) << recall << std::setw(16) << mean_hops << std::endl;
+      } else
+        diskann::cout << std::setw(16) << mean_hops << std::endl;
     }
-    auto                          e = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> diff = e - s;
-    float qps = (1.0 * query_num) / (1.0 * diff.count());
-
-    diskann::convert_types<uint64_t, uint32_t>(query_result_ids_64.data(),
-                                               query_result_ids[test_id].data(),
-                                               query_num, recall_at);
-
-    float mean_latency = diskann::get_mean_stats(
-        stats, query_num,
-        [](const diskann::QueryStats& stats) { return stats.total_us; });
-
-    float latency_999 = diskann::get_percentile_stats(
-        stats, query_num, 0.999,
-        [](const diskann::QueryStats& stats) { return stats.total_us; });
-
-    float mean_ios = diskann::get_mean_stats(
-        stats, query_num,
-        [](const diskann::QueryStats& stats) { return stats.n_ios; });
-
-    float mean_cpuus = diskann::get_mean_stats(
-        stats, query_num,
-        [](const diskann::QueryStats& stats) { return stats.cpu_us; });
-
-    float recall = 0;
-    if (calc_recall_flag) {
-      recall = diskann::calculate_recall(query_num, gt_ids, gt_dists, gt_dim,
-                                         query_result_ids[test_id].data(),
-                                         recall_at, recall_at);
-    }
-
-    diskann::cout << std::setw(6) << L << std::setw(12) << optimized_beamwidth
-                  << std::setw(16) << qps << std::setw(16) << mean_latency
-                  << std::setw(16) << latency_999 << std::setw(16) << mean_ios
-                  << std::setw(16) << mean_cpuus;
-    if (calc_recall_flag) {
-      diskann::cout << std::setw(16) << recall << std::endl;
-    } else
-      diskann::cout << std::endl;
   }
 
   diskann::cout << "Done searching. Now saving results " << std::endl;

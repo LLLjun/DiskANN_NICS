@@ -826,12 +826,17 @@ namespace diskann {
   }
 #endif
 
+/*
+  liujun. add Optimized end condition
+*/
+
   template<typename T>
   void PQFlashIndex<T>::cached_beam_search(const T *query1, const _u64 k_search,
                                            const _u64 l_search, _u64 *indices,
                                            float *     distances,
                                            const _u64  beam_width,
-                                           QueryStats *stats) {
+                                           QueryStats *stats,
+                                           bool isOptend, float wide_p, bool isdebug) {
     ThreadData<T> data = this->thread_data.pop();
     while (data.scratch.sector_scratch == nullptr) {
       this->thread_data.wait_for_push_notify();
@@ -944,8 +949,39 @@ namespace diskann {
     std::vector<std::pair<unsigned, std::pair<unsigned, unsigned *>>>
         cached_nhoods;
 
+#ifdef OPTEND
+    // float wide_p = WIDEP;
+    float bound_l, bound_k;
+    float dist_marker;
+    bound_l = retset[0].distance;
+    bound_k = retset[0].distance;
+    if (isdebug)
+      printf("start, bound_l: %.3f, bound_k: %.3f \n", bound_l, bound_k);
+#endif
+#ifdef HE
+    float last_bound_l = 0;
+    unsigned non_hop = 0;
+#endif
+
+
     while (k < cur_list_size) {
       auto nk = cur_list_size;
+#ifdef HE
+      if (non_hop >= 2)
+        break;
+#endif
+
+
+#ifdef OPTEND
+      // todo: use full_set?
+      dist_marker = retset[k].distance;
+      if (isOptend){
+        if (dist_marker > (bound_k * wide_p + bound_l * (1.0 - wide_p)))
+          break;
+      }
+      if (isdebug)
+        printf("hop: %u, non_hop: %u \n", hops, non_hop);
+#endif
 
       // clear iteration state
       frontier.clear();
@@ -962,6 +998,15 @@ namespace diskann {
       while (marker < cur_list_size && frontier.size() < beam_width &&
              num_seen < beam_width + 2) {
         if (retset[marker].flag) {
+#ifdef OPTEND
+          // todo: use full_set?
+          dist_marker = retset[marker].distance;
+          if (isOptend){
+            if (dist_marker > (bound_k * wide_p + bound_l * (1.0 - wide_p)))
+              break;
+          }
+#endif
+
           num_seen++;
           auto iter = nhood_cache.find(retset[marker].id);
           if (iter != nhood_cache.end()) {
@@ -1031,7 +1076,7 @@ namespace diskann {
                 query_float, (_u8 *) node_fp_coords_copy);
         }
         full_retset.push_back(
-            Neighbor((unsigned) cached_nhood.first, cur_expanded_dist, true));
+            Neighbor((unsigned) cached_nhood.first, cur_expanded_dist, true));    // full_retset 也是不准确的距离呀
 
         _u64      nnbrs = cached_nhood.second.first;
         unsigned *node_nbrs = cached_nhood.second.second;
@@ -1068,6 +1113,16 @@ namespace diskann {
               nk = r;  // nk logs the best position in the retset that was
             // updated
             // due to neighbors of n.
+
+#ifdef OPTEND
+            bound_l = retset[cur_list_size - 1].distance;
+            if (cur_list_size < 10)
+              bound_k = bound_l;
+            else
+              bound_k = retset[9].distance;
+            if (isdebug)
+              printf("cached, bound_l: %.3f, bound_k: %.3f \n", bound_l, bound_k);
+#endif
           }
         }
       }
@@ -1154,6 +1209,15 @@ namespace diskann {
               nk = r;  // nk logs the best position in the retset that was
                        // updated
                        // due to neighbors of n.
+#ifdef OPTEND
+            bound_l = retset[cur_list_size - 1].distance;
+            if (cur_list_size < 10)
+              bound_k = bound_l;
+            else
+              bound_k = retset[9].distance;
+            if (isdebug)
+              printf("cached, bound_l: %.3f, bound_k: %.3f \n", bound_l, bound_k);
+#endif
           }
         }
 
@@ -1161,6 +1225,15 @@ namespace diskann {
           stats->cpu_us += cpu_timer.elapsed();
         }
       }
+
+#ifdef HE
+      if (bound_l == last_bound_l)
+        non_hop++;
+      else
+        non_hop = 0;
+
+      last_bound_l = retset[cur_list_size - 1].distance;
+#endif
 
       // update best inserted position
       //
