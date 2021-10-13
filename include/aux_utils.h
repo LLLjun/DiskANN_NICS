@@ -32,7 +32,7 @@ typedef int FileHandle;
 #include "gperftools/malloc_extension.h"
 #include "iofile.h"
 
-#define SMAG true
+#define SMAG false
 #define LEN_SMAG 4
 #define TEST_FILE
 

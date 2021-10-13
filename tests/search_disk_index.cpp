@@ -141,7 +141,7 @@ int search_disk_index(int argc, char** argv) {
   } else if (data_name == "SPACEV") {
     thsd = 1000;
   } else if (data_name == "DEEP") {
-    thsd = 1;
+    thsd = 0.8;
   } else {
     thsd = __FLT_MAX__;
     isSmag = false;

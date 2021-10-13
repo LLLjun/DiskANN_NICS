@@ -951,6 +951,8 @@ namespace diskann {
     std::vector<std::pair<unsigned, std::pair<unsigned, unsigned *>>>
         cached_nhoods;
 
+    bool comb_flag = 0;
+
 #if OPTEND
     float    bound_l;
     float    last_bound_l = 0;
@@ -976,6 +978,7 @@ namespace diskann {
       frontier_read_reqs.clear();
       cached_nhoods.clear();
       sector_scratch_idx = 0;
+      comb_flag = 0;
 
       // find new beam
       // WAS: _u64 marker = k - 1;
@@ -1022,6 +1025,7 @@ namespace diskann {
             compute_dists(&id, 1, dist_scratch);
           }
           if (!isSmag || (dist_scratch[0] < thsd)) {
+            comb_flag = 1;
             frontier_read_reqs.emplace_back(
                 NODE_SECTOR_NO(((size_t) id)) * SECTOR_LEN, SECTOR_LEN,
                 fnhood.second);
@@ -1130,6 +1134,7 @@ namespace diskann {
           compute_dists(&frontier_nhood.first, 1, dist_scratch);
         }
         if (!isSmag || (dist_scratch[0] < thsd)) {
+          comb_flag = 1;
           char *node_disk_buf =
               OFFSET_TO_NODE(frontier_nhood.second, frontier_nhood.first);
           unsigned *node_buf = OFFSET_TO_NODE_NHOOD(node_disk_buf);
@@ -1216,7 +1221,7 @@ namespace diskann {
       }
 
 #if OPTEND
-      if (bound_l == last_bound_l)
+      if (!comb_flag && bound_l == last_bound_l)
         non_hop++;
       else
         non_hop = 0;
