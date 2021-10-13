@@ -23,7 +23,7 @@
 #define MAX_N_SECTOR_READS 128
 #define MAX_PQ_CHUNKS 100
 
-#define OPTEND
+#define OPTEND false
 #define HE 2
 
 namespace diskann {

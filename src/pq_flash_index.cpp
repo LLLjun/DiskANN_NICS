@@ -949,7 +949,7 @@ namespace diskann {
     std::vector<std::pair<unsigned, std::pair<unsigned, unsigned *>>>
         cached_nhoods;
 
-#ifdef OPTEND
+#if OPTEND
     float bound_l;
     float last_bound_l = 0;
     unsigned non_hop = 0;
@@ -961,7 +961,7 @@ namespace diskann {
     while (k < cur_list_size) {
       auto nk = cur_list_size;
 
-#ifdef OPTEND
+#if OPTEND
       if (isOptend && (non_hop >= limit_hop))
         break;
       if (isdebug)
@@ -1090,7 +1090,7 @@ namespace diskann {
             // updated
             // due to neighbors of n.
 
-#ifdef OPTEND
+#if OPTEND
             bound_l = retset[cur_list_size - 1].distance;
             // if (isdebug)
             //   printf("cached, bound_l: %.3f, bound_k: %.3f \n", bound_l, bound_k);
@@ -1181,7 +1181,7 @@ namespace diskann {
               nk = r;  // nk logs the best position in the retset that was
                        // updated
                        // due to neighbors of n.
-#ifdef OPTEND
+#if OPTEND
             bound_l = retset[cur_list_size - 1].distance;
             // if (isdebug)
             //   printf("cached, bound_l: %.3f, bound_k: %.3f \n", bound_l, bound_k);
@@ -1194,7 +1194,7 @@ namespace diskann {
         }
       }
 
-#ifdef OPTEND
+#if OPTEND
       if (bound_l == last_bound_l)
         non_hop++;
       else
