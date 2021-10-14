@@ -22,9 +22,14 @@
 #define SECTOR_LEN 4096
 #define MAX_N_SECTOR_READS 128
 #define MAX_PQ_CHUNKS 100
+#include "iofile.h"
 
 #define OPTEND true
 #define HE 2
+
+#define SMAG true
+#define LEN_SMAG 4
+// #define TEST_FILE
 
 namespace diskann {
   template<typename T>

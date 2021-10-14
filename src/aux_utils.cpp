@@ -538,11 +538,11 @@ namespace diskann {
     cached_ifstream vamana_reader(mem_index_file, read_blk_size);
     cached_ofstream diskann_writer(output_file, write_blk_size);
 
-#ifdef SMAG
-    std::string smag_path = output_file + "_smag.bin";
-    unsigned    len_smag = LEN_SMAG;
-    unsigned *  smag_list = new unsigned[npts * len_smag];
-#endif
+// #ifdef SMAG
+//     std::string smag_path = output_file + "_smag.bin";
+//     unsigned    len_smag = LEN_SMAG;
+//     unsigned *  smag_list = new unsigned[npts * len_smag];
+// #endif
 
     // metadata: width, medoid
     unsigned width_u32, medoid_u32;
@@ -617,11 +617,11 @@ namespace diskann {
         // read node's nhood
         vamana_reader.read((char *) nhood_buf, nnbrs * sizeof(unsigned));
 
-#ifdef SMAG
-        memcpy(smag_list + cur_node_id * len_smag,
-               nhood_buf + (nnbrs - len_smag) * sizeof(unsigned),
-               len_smag * sizeof(unsigned));
-#endif
+// #ifdef SMAG
+//         memcpy(smag_list + cur_node_id * len_smag,
+//                nhood_buf + (nnbrs - len_smag) * sizeof(unsigned),
+//                len_smag * sizeof(unsigned));
+// #endif
 
         // write coords of node first
         //  T *node_coords = data + ((_u64) ndims_64 * cur_node_id);
@@ -646,9 +646,9 @@ namespace diskann {
       // flush sector to disk
       diskann_writer.write(sector_buf.get(), SECTOR_LEN);
     }
-#ifdef SMAG
-    WriteBinToArray<unsigned>(smag_path, smag_list, npts, len_smag);
-#endif
+// #ifdef SMAG
+//     WriteBinToArray<unsigned>(smag_path, smag_list, npts, len_smag);
+// #endif
     diskann::cout << "Output file written." << std::endl;
   }
 

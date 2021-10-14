@@ -1221,7 +1221,7 @@ namespace diskann {
       }
 
 #if OPTEND
-      if (!comb_flag && bound_l == last_bound_l)
+      if (comb_flag && (bound_l == last_bound_l))
         non_hop++;
       else
         non_hop = 0;
