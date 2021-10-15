@@ -172,12 +172,10 @@ int search_disk_index(int argc, char** argv) {
     printf("Start Loading Small Graph.\n");
     unsigned total_num_points = _pFlashIndex->num_points;
     num_nbrs = 4;
-    small_graph =
-        (unsigned*) malloc(total_num_points * num_nbrs * sizeof(unsigned));
 
     std::string small_graph_path = disk_index_file + "_smag.bin";
     // std::string small_graph_path = index_prefix_path + "_small_graph.bin";
-    _pFlashIndex->loadSmallGraph(small_graph_path, disk_index_file, total_num_points, nm_nbrs);
+    _pFlashIndex->load_small_graph(small_graph_path, disk_index_file, total_num_points, nm_nbrs);
     printf("Load Small Graph from %s done.\n", disk_index_file.c_str());
   }
   // cache bfs levels
@@ -224,7 +222,8 @@ int search_disk_index(int argc, char** argv) {
 
 #pragma omp parallel for schedule(dynamic, 1)
     for (_s64 i = 0; i < (int64_t) warmup_num; i++) {
-      _pFlashIndex->cached_beam_search(warmup + (i * warmup_aligned_dim), 1,
+      _pFlashIndex->
+      (warmup + (i * warmup_aligned_dim), 1,
                                        warmup_L,
                                        warmup_result_ids_64.data() + (i * 1),
                                        warmup_result_dists.data() + (i * 1), 4);
@@ -294,8 +293,7 @@ int search_disk_index(int argc, char** argv) {
           query + (i * query_aligned_dim), recall_at, L,
           query_result_ids_64.data() + (i * recall_at),
           query_result_dists[test_id].data() + (i * recall_at),
-          optimized_beamwidth, stats + i, OPTEND, HE, false, isSmag, thsd,
-          small_graph, num_nbrs);
+          optimized_beamwidth, stats + i);
     }
     auto                          e = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> diff = e - s;

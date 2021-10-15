@@ -837,8 +837,12 @@ namespace diskann {
   template<typename T>
   void PQFlashIndex<T>::cached_beam_search(
       const T *query1, const _u64 k_search, const _u64 l_search, _u64 *indices,
-      float *distances, const _u64 beam_width, QueryStats *stats, bool isOptend,
-      unsigned limit_hop, bool isdebug, bool isSmag, float thsd, unsigned num_nbrs) {
+      float *distances, const _u64 beam_width, QueryStats *stats) {
+    
+    usigned num_nbrs = 4;
+    float thsd = __FLT_MAX__;
+    isSmag = SMAG;
+
     ThreadData<T> data = this->thread_data.pop();
     while (data.scratch.sector_scratch == nullptr) {
       this->thread_data.wait_for_push_notify();
@@ -961,18 +965,14 @@ namespace diskann {
     float    last_bound_l = 0;
     unsigned non_hop = 0;
     bound_l = retset[0].distance;
-    // if (isdebug)
-    //   printf("start, bound_l: %.3f, bound_k: %.3f \n", bound_l, bound_k);
 #endif
 
     while (k < cur_list_size) {
       auto nk = cur_list_size;
 
 #if OPTEND
-      if (isOptend && (non_hop >= limit_hop))
+      if (OPTEND && (non_hop >= HE))
         break;
-      if (isdebug)
-        printf("hop: %u, non_hop: %u \n", hops, non_hop);
 #endif
 
       // clear iteration state
@@ -1107,9 +1107,6 @@ namespace diskann {
 
 #if OPTEND
             bound_l = retset[cur_list_size - 1].distance;
-            // if (isdebug)
-            //   printf("cached, bound_l: %.3f, bound_k: %.3f \n", bound_l,
-            //   bound_k);
 #endif
           }
         }
@@ -1211,9 +1208,6 @@ namespace diskann {
                        // due to neighbors of n.
 #if OPTEND
             bound_l = retset[cur_list_size - 1].distance;
-            // if (isdebug)
-            //   printf("cached, bound_l: %.3f, bound_k: %.3f \n", bound_l,
-            //   bound_k);
 #endif
           }
         }
@@ -1289,7 +1283,7 @@ template<typename T>
     small_graph =
         (unsigned*) malloc(total_num_points * num_nbrs * sizeof(unsigned));
     if (file_exists(small_graph_path)) {
-      LoadBinToArray<unsigned>(small_graph_path, small_graph, total_num_points,
+      load_bin_to_array<unsigned>(small_graph_path, small_graph, total_num_points,
                                num_nbrs);
     }
     else {
@@ -1314,7 +1308,7 @@ template<typename T>
       }
 
       file_reader.close();
-      WriteBinToArray<unsigned>(small_graph_path, small_graph, total_num_points,
+      write_bin_to_array<unsigned>(small_graph_path, small_graph, total_num_points,
                                 num_nbrs);
     }   
     printf("Load Small Graph from %s done.\n", disk_index_file.c_str());  
@@ -1323,8 +1317,8 @@ template<typename T>
 
 // iofile
 template<typename T>
-void PQFlashIndex<T>::LoadBinToArray(std::string& file_path, uint32_t nums,
-                    uint32_t dims, bool non_header = false) {
+void PQFlashIndex<T>::load_bin_to_array(std::string& file_path, uint32_t nums,
+                    uint32_t dims, bool non_header) {
   std::ifstream file_reader(file_path.c_str(), std::ios::binary);
   if (!non_header) {
     uint32_t nums_r, dims_r;
@@ -1343,8 +1337,8 @@ void PQFlashIndex<T>::LoadBinToArray(std::string& file_path, uint32_t nums,
 }
 
 template<typename T>
-void PQFlashIndex<T>::WriteBinToArray(std::string& file_path, uint32_t nums,
-                     uint32_t dims, bool non_header = false) {
+void PQFlashIndex<T>::write_array_to_bin(std::string& file_path, uint32_t nums,
+                     uint32_t dims, bool non_header) {
   std::ofstream file_writer(file_path.c_str(), std::ios::binary);
   if (!non_header) {
     file_writer.write((char*) &nums, sizeof(uint32_t));

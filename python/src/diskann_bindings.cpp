@@ -20,7 +20,6 @@ PYBIND11_MAKE_OPAQUE(std::vector<float>);
 PYBIND11_MAKE_OPAQUE(std::vector<int8_t>);
 PYBIND11_MAKE_OPAQUE(std::vector<uint8_t>);
 
-
 namespace py = pybind11;
 using namespace diskann;
 
@@ -89,11 +88,13 @@ struct DiskANNIndex {
     } else {
       std::cout << "Invalid choice of caching mechanism." << std::endl;
     }
+    /*
     std::string small_graph_path = index_path_prefix + "_smag.bin";
     unsigned total_num_points = _pFlashIndex->num_points;
     num_nbrs = 4;
     load_small_graph(small_graph_path, disk_file_path, total_num_points,
                      num_nbrs);
+    */
     return 0;
   }
 
