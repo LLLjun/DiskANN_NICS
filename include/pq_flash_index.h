@@ -22,7 +22,6 @@
 #define SECTOR_LEN 4096
 #define MAX_N_SECTOR_READS 128
 #define MAX_PQ_CHUNKS 100
-#include "iofile.h"
 
 #define OPTEND true
 #define HE 2
@@ -123,11 +122,18 @@ namespace diskann {
         const T *query, const _u64 k_search, const _u64 l_search, _u64 *res_ids,
         float *res_dists, const _u64 beam_width, QueryStats *stats = nullptr, 
         bool isOptend = false, unsigned limit_hop = 0, bool isdebug = false,
-        bool isSmag = false, float thsd = std::numeric_limits<float>::max(), 
-        unsigned* small_graph = nullptr, unsigned num_nbrs = 0);
+        bool isSmag = false, float thsd = std::numeric_limits<float>::max(), unsigned num_nbrs = 0);
 
+    DISKANN_DLLEXPORT void load_small_graph(std::string& file_path, std::string& disk_file_path, uint32_t nums,
+                     uint32_t dims, bool non_header = false);
 
-  DISKANN_DLLEXPORT _u32 range_search(const T *query1, const double range,
+    DISKANN_DLLEXPORT void write_array_to_bin(std::string& file_path, uint32_t nums,
+                     uint32_t dims, bool non_header = false);
+
+    DISKANN_DLLEXPORT void load_bin_to_array(std::string& file_path, uint32_t nums,
+                     uint32_t dims, bool non_header = false);
+
+    DISKANN_DLLEXPORT _u32 range_search(const T *query1, const double range,
                                      const _u64          min_l_search,
                                      const _u64          max_l_search,
                                      std::vector<_u64> & indices,
@@ -196,6 +202,9 @@ namespace diskann {
     // nhood_cache
     unsigned *                                    nhood_cache_buf = nullptr;
     tsl::robin_map<_u32, std::pair<_u32, _u32 *>> nhood_cache;
+
+    // small_graph
+    unsigned * small_graph = nullptr;
 
     // coord_cache
     T *                       coord_cache_buf = nullptr;

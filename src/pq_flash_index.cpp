@@ -196,6 +196,10 @@ namespace diskann {
       diskann::aligned_free(coord_cache_buf);
     }
 
+    if (small_graph != nullptr) {
+      delete[] small_graph;
+      free(small_graph);
+    }
     delete this->dist_cmp;
     delete this->dist_cmp_float;
     if (load_flag) {
@@ -834,8 +838,7 @@ namespace diskann {
   void PQFlashIndex<T>::cached_beam_search(
       const T *query1, const _u64 k_search, const _u64 l_search, _u64 *indices,
       float *distances, const _u64 beam_width, QueryStats *stats, bool isOptend,
-      unsigned limit_hop, bool isdebug, bool isSmag, float thsd,
-      unsigned *small_graph, unsigned num_nbrs) {
+      unsigned limit_hop, bool isdebug, bool isSmag, float thsd, unsigned num_nbrs) {
     ThreadData<T> data = this->thread_data.pop();
     while (data.scratch.sector_scratch == nullptr) {
       this->thread_data.wait_for_push_notify();
@@ -1277,6 +1280,81 @@ namespace diskann {
       stats->total_us = (double) query_timer.elapsed();
     }
   }
+
+
+template<typename T>
+  void PQFlashIndex<T>::load_small_graph(std::string& file_path, 
+                     std::string& disk_file_path, uint32_t nums,
+                     uint32_t dims, bool non_header) {
+    small_graph =
+        (unsigned*) malloc(total_num_points * num_nbrs * sizeof(unsigned));
+    if (file_exists(small_graph_path)) {
+      LoadBinToArray<unsigned>(small_graph_path, small_graph, total_num_points,
+                               num_nbrs);
+    }
+    else {
+      std::ifstream file_reader(disk_index_file.c_str(), std::ios::binary);
+      unsigned      L;
+      unsigned      len_data_type;
+      if (std::string(argv[1]) == std::string("float"))
+        len_data_type = 4;
+      else
+        len_data_type = 1;
+
+      for (uint32_t i = 0; i < total_num_points; i++) {
+        uint64_t shift =
+            4096 * (1 + i / _pFlashIndex->nnodes_per_sector) +
+            (i % _pFlashIndex->nnodes_per_sector) * _pFlashIndex->max_node_len +
+            _pFlashIndex->data_dim * len_data_type;
+        file_reader.seekg(shift, std::ios::beg);
+        file_reader.read((char*) &L, sizeof(unsigned));
+        file_reader.seekg((L - num_nbrs) * sizeof(unsigned), std::ios::cur);
+        file_reader.read((char*) (small_graph + i * num_nbrs),
+                         num_nbrs * sizeof(unsigned));
+      }
+
+      file_reader.close();
+      WriteBinToArray<unsigned>(small_graph_path, small_graph, total_num_points,
+                                num_nbrs);
+    }   
+    printf("Load Small Graph from %s done.\n", disk_index_file.c_str());  
+
+  }
+
+// iofile
+template<typename T>
+void PQFlashIndex<T>::LoadBinToArray(std::string& file_path, uint32_t nums,
+                    uint32_t dims, bool non_header = false) {
+  std::ifstream file_reader(file_path.c_str(), std::ios::binary);
+  if (!non_header) {
+    uint32_t nums_r, dims_r;
+    file_reader.read((char*) &nums_r, sizeof(uint32_t));
+    file_reader.read((char*) &dims_r, sizeof(uint32_t));
+    if ((nums != nums_r) || (dims != dims_r)) {
+      printf(
+          "Error, file size is error, file name: %s, nums_r: %u, dims_r: %u\n",
+          file_path.c_str(), nums_r, dims_r);
+      exit(1);
+    }
+  }
+  file_reader.read((char*) small_graph, nums * dims * sizeof(unsigned));
+  file_reader.close();
+  printf("Load %u * %u data from %s done.\n", nums, dims, file_path.c_str());
+}
+
+template<typename T>
+void PQFlashIndex<T>::WriteBinToArray(std::string& file_path, uint32_t nums,
+                     uint32_t dims, bool non_header = false) {
+  std::ofstream file_writer(file_path.c_str(), std::ios::binary);
+  if (!non_header) {
+    file_writer.write((char*) &nums, sizeof(uint32_t));
+    file_writer.write((char*) &dims, sizeof(uint32_t));
+  }
+
+  file_writer.write((char*) small_graph, nums * dims * sizeof(unsigned));
+  file_writer.close();
+  printf("Write %u * %u data to %s done.\n", nums, dims, file_path.c_str());
+}
 
   // range search returns results of all neighbors within distance of range.
   // indices and distances need to be pre-allocated of size l_search and the

@@ -177,41 +177,7 @@ int search_disk_index(int argc, char** argv) {
 
     std::string small_graph_path = disk_index_file + "_smag.bin";
     // std::string small_graph_path = index_prefix_path + "_small_graph.bin";
-
-    if (file_exists(small_graph_path)) {
-      LoadBinToArray<unsigned>(small_graph_path, small_graph, total_num_points,
-                               num_nbrs);
-    }
-    // todo
-    // else{
-    //   printf("Error, need file %s \n", small_graph_path.c_str());
-    //   exit(1);
-    // }
-    else {
-      std::ifstream file_reader(disk_index_file.c_str(), std::ios::binary);
-      unsigned      L;
-      unsigned      len_data_type;
-      if (std::string(argv[1]) == std::string("float"))
-        len_data_type = 4;
-      else
-        len_data_type = 1;
-
-      for (uint32_t i = 0; i < total_num_points; i++) {
-        uint64_t shift =
-            4096 * (1 + i / _pFlashIndex->nnodes_per_sector) +
-            (i % _pFlashIndex->nnodes_per_sector) * _pFlashIndex->max_node_len +
-            _pFlashIndex->data_dim * len_data_type;
-        file_reader.seekg(shift, std::ios::beg);
-        file_reader.read((char*) &L, sizeof(unsigned));
-        file_reader.seekg((L - num_nbrs) * sizeof(unsigned), std::ios::cur);
-        file_reader.read((char*) (small_graph + i * num_nbrs),
-                         num_nbrs * sizeof(unsigned));
-      }
-
-      file_reader.close();
-      WriteBinToArray<unsigned>(small_graph_path, small_graph, total_num_points,
-                                num_nbrs);
-    }
+    _pFlashIndex->loadSmallGraph(small_graph_path, disk_index_file, total_num_points, nm_nbrs);
     printf("Load Small Graph from %s done.\n", disk_index_file.c_str());
   }
   // cache bfs levels
