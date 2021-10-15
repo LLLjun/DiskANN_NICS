@@ -1278,7 +1278,7 @@ namespace diskann {
 
 template<typename T>
   void PQFlashIndex<T>::load_small_graph(std::string& file_path, 
-                     std::string& disk_file_path, uint32_t nums,
+                     std::string& disk_file_path, uint32_t total_num_points,
                      uint32_t dims, bool non_header) {
     small_graph =
         (unsigned*) malloc(total_num_points * num_nbrs * sizeof(unsigned));
