@@ -69,8 +69,8 @@ int search_disk_index(int argc, char** argv) {
               << std::endl;
     return -1;
   }
-
-  if ((std::string(argv[1]) != std::string("float")) &&
+  std::string data_type = std::string(argv[1]);
+  if (data_type != std::string("float")) &&
       (metric == diskann::Metric::INNER_PRODUCT)) {
     std::cout << "Currently support only floating point data for Inner Product."
               << std::endl;
@@ -175,7 +175,7 @@ int search_disk_index(int argc, char** argv) {
 
     std::string small_graph_path = disk_index_file + "_smag.bin";
     // std::string small_graph_path = index_prefix_path + "_small_graph.bin";
-    _pFlashIndex->load_small_graph(small_graph_path, disk_index_file, total_num_points, nm_nbrs);
+    _pFlashIndex->load_small_graph(small_graph_path, disk_index_file, total_num_points, nm_nbrs, data_type);
     printf("Load Small Graph from %s done.\n", disk_index_file.c_str());
   }
   // cache bfs levels

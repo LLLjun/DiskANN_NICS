@@ -1279,7 +1279,7 @@ namespace diskann {
 template<typename T>
   void PQFlashIndex<T>::load_small_graph(std::string& small_graph_path, 
                      std::string& disk_file_path, uint32_t total_num_points,
-                     uint32_t num_nbrs, bool non_header) {
+                     uint32_t num_nbrs, std::string data_type, bool non_header) {
     small_graph =
         (unsigned*) malloc(total_num_points * num_nbrs * sizeof(unsigned));
     if (file_exists(small_graph_path)) {
@@ -1290,7 +1290,7 @@ template<typename T>
       std::ifstream file_reader(disk_index_file.c_str(), std::ios::binary);
       unsigned      L;
       unsigned      len_data_type;
-      if (std::string(argv[1]) == std::string("float"))
+      if (data_type == std::string("float"))
         len_data_type = 4;
       else
         len_data_type = 1;

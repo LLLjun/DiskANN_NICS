@@ -123,7 +123,7 @@ namespace diskann {
         float *res_dists, const _u64 beam_width, QueryStats *stats = nullptr);
 
     DISKANN_DLLEXPORT void load_small_graph(std::string& file_path, std::string& disk_file_path, uint32_t nums,
-                     uint32_t dims, bool non_header = false);
+                     uint32_t dims, std::string data_type, bool non_header = false);
 
     DISKANN_DLLEXPORT void write_array_to_bin(std::string& file_path, uint32_t nums,
                      uint32_t dims, bool non_header = false);
