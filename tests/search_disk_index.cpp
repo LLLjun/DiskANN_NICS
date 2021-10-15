@@ -70,7 +70,7 @@ int search_disk_index(int argc, char** argv) {
     return -1;
   }
   std::string data_type = std::string(argv[1]);
-  if (data_type != std::string("float")) &&
+  if ((data_type != std::string("float")) &&
       (metric == diskann::Metric::INNER_PRODUCT)) {
     std::cout << "Currently support only floating point data for Inner Product."
               << std::endl;
