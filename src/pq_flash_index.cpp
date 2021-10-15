@@ -841,7 +841,7 @@ namespace diskann {
     
     unsigned num_nbrs = 4;
     float thsd = __FLT_MAX__;
-    isSmag = SMAG;
+    bool isSmag = SMAG;
 
     ThreadData<T> data = this->thread_data.pop();
     while (data.scratch.sector_scratch == nullptr) {
