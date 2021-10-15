@@ -839,7 +839,7 @@ namespace diskann {
       const T *query1, const _u64 k_search, const _u64 l_search, _u64 *indices,
       float *distances, const _u64 beam_width, QueryStats *stats) {
     
-    usigned num_nbrs = 4;
+    unsigned num_nbrs = 4;
     float thsd = __FLT_MAX__;
     isSmag = SMAG;
 
