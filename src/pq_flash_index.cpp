@@ -1283,7 +1283,7 @@ template<typename T>
     small_graph =
         (unsigned*) malloc(total_num_points * num_nbrs * sizeof(unsigned));
     if (file_exists(small_graph_path)) {
-      load_bin_to_array<unsigned>(small_graph_path, small_graph, total_num_points,
+      load_bin_to_array(small_graph_path, small_graph, total_num_points,
                                num_nbrs);
     }
     else {
@@ -1308,7 +1308,7 @@ template<typename T>
       }
 
       file_reader.close();
-      write_bin_to_array<unsigned>(small_graph_path, small_graph, total_num_points,
+      write_bin_to_array(small_graph_path, small_graph, total_num_points,
                                 num_nbrs);
     }   
     printf("Load Small Graph from %s done.\n", disk_index_file.c_str());  
