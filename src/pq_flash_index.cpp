@@ -1297,9 +1297,9 @@ template<typename T>
 
       for (uint32_t i = 0; i < total_num_points; i++) {
         uint64_t shift =
-            4096 * (1 + i / _pFlashIndex->nnodes_per_sector) +
-            (i % _pFlashIndex->nnodes_per_sector) * _pFlashIndex->max_node_len +
-            _pFlashIndex->data_dim * len_data_type;
+            4096 * (1 + i / nnodes_per_sector) +
+            (i % nnodes_per_sector) * max_node_len +
+            data_dim * len_data_type;
         file_reader.seekg(shift, std::ios::beg);
         file_reader.read((char*) &L, sizeof(unsigned));
         file_reader.seekg((L - num_nbrs) * sizeof(unsigned), std::ios::cur);
