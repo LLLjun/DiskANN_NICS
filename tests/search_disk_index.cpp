@@ -175,7 +175,7 @@ int search_disk_index(int argc, char** argv) {
 
     std::string small_graph_path = disk_index_file + "_smag.bin";
     // std::string small_graph_path = index_prefix_path + "_small_graph.bin";
-    _pFlashIndex->load_small_graph(small_graph_path, disk_index_file, total_num_points, nm_nbrs, data_type);
+    _pFlashIndex->load_small_graph(small_graph_path, disk_index_file, total_num_points, num_nbrs, data_type);
     printf("Load Small Graph from %s done.\n", disk_index_file.c_str());
   }
   // cache bfs levels
@@ -222,8 +222,7 @@ int search_disk_index(int argc, char** argv) {
 
 #pragma omp parallel for schedule(dynamic, 1)
     for (_s64 i = 0; i < (int64_t) warmup_num; i++) {
-      _pFlashIndex->
-      (warmup + (i * warmup_aligned_dim), 1,
+      _pFlashIndex->cached_beam_search(warmup + (i * warmup_aligned_dim), 1,
                                        warmup_L,
                                        warmup_result_ids_64.data() + (i * 1),
                                        warmup_result_dists.data() + (i * 1), 4);
