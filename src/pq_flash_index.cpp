@@ -1308,7 +1308,7 @@ template<typename T>
       }
 
       file_reader.close();
-      write_bin_to_array(small_graph_path, small_graph, total_num_points,
+      write_array_to_bin(small_graph_path, small_graph, total_num_points,
                                 num_nbrs);
     }   
     printf("Load Small Graph from %s done.\n", disk_index_file.c_str());  
