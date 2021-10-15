@@ -139,6 +139,7 @@ namespace diskann {
                                      const _u64          min_beam_width,
                                      QueryStats *        stats);
 
+    DISKANN_DLLEXPORT Metric get_metric();
     std::shared_ptr<AlignedFileReader> &reader;
    protected:
     DISKANN_DLLEXPORT void use_medoids_data_as_centroids();
