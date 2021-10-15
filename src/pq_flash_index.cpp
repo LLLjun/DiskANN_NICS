@@ -1395,6 +1395,11 @@ void PQFlashIndex<T>::write_array_to_bin(std::string& file_path, uint32_t nums,
     return res_count;
   }
 
+  template<typename T>
+  Metric PQFlashIndex<T>::get_metric() {
+    return metric;
+  }
+  
 #ifdef EXEC_ENV_OLS
   template<typename T>
   char *PQFlashIndex<T>::getHeaderBytes() {
