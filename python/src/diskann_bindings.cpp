@@ -67,7 +67,7 @@ struct DiskANNIndex {
   }
 
   int load_index(const std::string &index_path_prefix, const int num_threads,
-                 const size_t num_nodes_to_cache, int cache_mechanism, bool is_smag, bool is_optend, int num_nbrs, const std::string& data_type) {
+                 const size_t num_nodes_to_cache, int cache_mechanism, bool is_smag, bool is_optend, unsigned num_nbrs, const std::string& data_type) {
     const std::string pq_path = index_path_prefix + std::string("_pq");
     const std::string index_path =
         index_path_prefix + std::string("_disk.index");
