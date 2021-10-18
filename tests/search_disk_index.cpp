@@ -130,6 +130,7 @@ int search_disk_index(int argc, char** argv) {
   float     thsd;
   unsigned  num_nbrs = LEN_SMAG;
   unsigned* small_graph = nullptr;
+  bool isOptend = OPTEND;
 
   // todo
   if (data_name == "BIGANN") {
@@ -292,7 +293,7 @@ int search_disk_index(int argc, char** argv) {
           query + (i * query_aligned_dim), recall_at, L,
           query_result_ids_64.data() + (i * recall_at),
           query_result_dists[test_id].data() + (i * recall_at),
-          optimized_beamwidth, stats + i);
+          optimized_beamwidth, stats + i, isSmag, thsd, num_nbrs, isOptend, HE);
     }
     auto                          e = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> diff = e - s;

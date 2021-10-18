@@ -837,11 +837,9 @@ namespace diskann {
   template<typename T>
   void PQFlashIndex<T>::cached_beam_search(
       const T *query1, const _u64 k_search, const _u64 l_search, _u64 *indices,
-      float *distances, const _u64 beam_width, QueryStats *stats) {
+      float *distances, const _u64 beam_width, QueryStats *stats, bool isSmag, float thsd, bool isOptend, unsigned he) {
     
     unsigned num_nbrs = 4;
-    float thsd = __FLT_MAX__;
-    bool isSmag = SMAG;
 
     ThreadData<T> data = this->thread_data.pop();
     while (data.scratch.sector_scratch == nullptr) {
@@ -971,7 +969,7 @@ namespace diskann {
       auto nk = cur_list_size;
 
 #if OPTEND
-      if (OPTEND && (non_hop >= HE))
+      if (OPTEND && (non_hop >= he))
         break;
 #endif
 
@@ -1399,7 +1397,7 @@ void PQFlashIndex<T>::write_array_to_bin(std::string& file_path, uint32_t nums,
   Metric PQFlashIndex<T>::get_metric() {
     return metric;
   }
-  
+
 #ifdef EXEC_ENV_OLS
   template<typename T>
   char *PQFlashIndex<T>::getHeaderBytes() {

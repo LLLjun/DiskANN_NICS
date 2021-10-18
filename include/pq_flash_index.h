@@ -26,7 +26,7 @@
 #define OPTEND true
 #define HE 2
 
-#define SMAG false
+#define SMAG true
 #define LEN_SMAG 4
 // #define TEST_FILE
 
@@ -120,7 +120,7 @@ namespace diskann {
     // implemented
     DISKANN_DLLEXPORT void cached_beam_search(
         const T *query, const _u64 k_search, const _u64 l_search, _u64 *res_ids,
-        float *res_dists, const _u64 beam_width, QueryStats *stats = nullptr);
+        float *res_dists, const _u64 beam_width, QueryStats *stats = nullptr, bool isSmag = false, float thsd = = std::numeric_limits<float>::max(), unsigned num_nbrs = 0, bool isOptend = false, unsigned he = 0);
 
     DISKANN_DLLEXPORT void load_small_graph(std::string& file_path, std::string& disk_file_path, uint32_t nums,
                      uint32_t dims, std::string data_type, bool non_header = false);

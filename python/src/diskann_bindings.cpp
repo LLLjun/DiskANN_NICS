@@ -67,7 +67,7 @@ struct DiskANNIndex {
   }
 
   int load_index(const std::string &index_path_prefix, const int num_threads,
-                 const size_t num_nodes_to_cache, int cache_mechanism) {
+                 const size_t num_nodes_to_cache, int cache_mechanism, bool is_smag, bool is_optend, int num_nbrs, float data_type) {
     const std::string pq_path = index_path_prefix + std::string("_pq");
     const std::string index_path =
         index_path_prefix + std::string("_disk.index");
@@ -88,13 +88,12 @@ struct DiskANNIndex {
     } else {
       std::cout << "Invalid choice of caching mechanism." << std::endl;
     }
-    /*
-    std::string small_graph_path = index_path_prefix + "_smag.bin";
-    unsigned total_num_points = _pFlashIndex->num_points;
-    num_nbrs = 4;
-    load_small_graph(small_graph_path, disk_file_path, total_num_points,
-                     num_nbrs);
-    */
+    if (isSmag) {
+      std::string small_graph_path = index_path_prefix + "_smag.bin";
+      unsigned total_num_points = _pFlashIndex->num_points;
+      load_small_graph(small_graph_path, disk_file_path, total_num_points,
+                       num_nbrs, data_type);
+    }
     return 0;
   }
 
@@ -161,7 +160,7 @@ struct DiskANNIndex {
   auto batch_search_numpy_input(
       py::array_t<T, py::array::c_style | py::array::forcecast> &queries,
       const _u64 dim, const _u64 num_queries, const _u64 knn,
-      const _u64 l_search, const _u64 beam_width, const int num_threads) {
+      const _u64 l_search, const _u64 beam_width, const int num_threads, bool is_smag, float thsd, unsigned num_nbrs, bool is_optend, unsigned he) {
     py::array_t<unsigned> ids({num_queries, knn});
     py::array_t<float>    dists({num_queries, knn});
 
@@ -172,7 +171,7 @@ struct DiskANNIndex {
     for (_u64 i = 0; i < num_queries; i++) {
       pq_flash_index->cached_beam_search(
           queries.data(i), knn, l_search, u64_ids.data() + i * knn,
-          dists.mutable_data(i), beam_width, stats + i);
+          dists.mutable_data(i), beam_width, stats + i, is_smag, thsd, num_nbrs, is_optend, he);
     }
 
     auto r = ids.mutable_unchecked();
@@ -451,7 +450,9 @@ PYBIND11_MODULE(diskannpy, m) {
            py::arg("num_nodes_to_cache"))
       .def("load_index", &DiskANNIndex<float>::load_index,
            py::arg("index_path_prefix"), py::arg("num_threads"),
-           py::arg("num_nodes_to_cache"), py::arg("cache_mechanism") = 1)
+           py::arg("num_nodes_to_cache"), py::arg("cache_mechanism") = 1,
+           py::arg("is_smag"), py::arg("is_optend"),
+           py::arg("num_nbrs"), py::arg("data_type"))
       .def("search", &DiskANNIndex<float>::search, py::arg("query"),
            py::arg("query_idx"), py::arg("dim"), py::arg("num_queries"),
            py::arg("knn"), py::arg("l_search"), py::arg("beam_width"),
@@ -466,7 +467,9 @@ PYBIND11_MODULE(diskannpy, m) {
       .def("batch_search_numpy_input",
            &DiskANNIndex<float>::batch_search_numpy_input, py::arg("queries"),
            py::arg("dim"), py::arg("num_queries"), py::arg("knn"),
-           py::arg("l_search"), py::arg("beam_width"), py::arg("num_threads"))
+           py::arg("l_search"), py::arg("beam_width"), py::arg("num_threads"),
+           py::arg("is_smag"), py::arg("thsd"), py::arg("num_nbrs"),
+           py::arg("is_optend"), py::arg("he"))
       .def("batch_range_search_numpy_input",
            &DiskANNIndex<float>::batch_range_search_numpy_input,
            py::arg("queries"), py::arg("dim"), py::arg("num_queries"),
@@ -501,7 +504,9 @@ PYBIND11_MODULE(diskannpy, m) {
         py::arg("num_nodes_to_cache"))
       .def("load_index", &DiskANNIndex<int8_t>::load_index,
            py::arg("index_path_prefix"), py::arg("num_threads"),
-           py::arg("num_nodes_to_cache"), py::arg("cache_mechanism") = 1)
+           py::arg("num_nodes_to_cache"), py::arg("cache_mechanism") = 1,
+           py::arg("is_smag"), py::arg("is_optend"),
+           py::arg("num_nbrs"), py::arg("data_type"))
       .def("search", &DiskANNIndex<int8_t>::search, py::arg("query"),
            py::arg("query_idx"), py::arg("dim"), py::arg("num_queries"),
            py::arg("knn"), py::arg("l_search"), py::arg("beam_width"),
@@ -516,7 +521,9 @@ PYBIND11_MODULE(diskannpy, m) {
       .def("batch_search_numpy_input",
            &DiskANNIndex<int8_t>::batch_search_numpy_input, py::arg("queries"),
            py::arg("dim"), py::arg("num_queries"), py::arg("knn"),
-           py::arg("l_search"), py::arg("beam_width"), py::arg("num_threads"))
+           py::arg("l_search"), py::arg("beam_width"), py::arg("num_threads"),
+           py::arg("is_smag"), py::arg("thsd"), py::arg("num_nbrs"),
+           py::arg("is_optend"), py::arg("he"))
       .def("batch_range_search_numpy_input",
            &DiskANNIndex<int8_t>::batch_range_search_numpy_input,
            py::arg("queries"), py::arg("dim"), py::arg("num_queries"),
@@ -553,7 +560,9 @@ PYBIND11_MODULE(diskannpy, m) {
            py::arg("num_nodes_to_cache"))
       .def("load_index", &DiskANNIndex<uint8_t>::load_index,
            py::arg("index_path_prefix"), py::arg("num_threads"),
-           py::arg("num_nodes_to_cache"), py::arg("cache_mechanism") = 1)
+           py::arg("num_nodes_to_cache"), py::arg("cache_mechanism") = 1,
+           py::arg("is_smag"), py::arg("is_optend"),
+           py::arg("num_nbrs"), py::arg("data_type"))
       .def("search", &DiskANNIndex<uint8_t>::search, py::arg("query"),
            py::arg("query_idx"), py::arg("dim"), py::arg("num_queries"),
            py::arg("knn"), py::arg("l_search"), py::arg("beam_width"),
@@ -568,7 +577,9 @@ PYBIND11_MODULE(diskannpy, m) {
       .def("batch_search_numpy_input",
            &DiskANNIndex<uint8_t>::batch_search_numpy_input, py::arg("queries"),
            py::arg("dim"), py::arg("num_queries"), py::arg("knn"),
-           py::arg("l_search"), py::arg("beam_width"), py::arg("num_threads"))
+           py::arg("l_search"), py::arg("beam_width"), py::arg("num_threads"),
+           py::arg("is_smag"), py::arg("thsd"), py::arg("num_nbrs"),
+           py::arg("is_optend"), py::arg("he"))
       .def("batch_range_search_numpy_input",
            &DiskANNIndex<uint8_t>::batch_range_search_numpy_input,
            py::arg("queries"), py::arg("dim"), py::arg("num_queries"),
