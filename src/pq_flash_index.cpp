@@ -839,8 +839,6 @@ namespace diskann {
       const T *query1, const _u64 k_search, const _u64 l_search, _u64 *indices,
       float *distances, const _u64 beam_width, QueryStats *stats, bool isSmag, float thsd, unsigned num_nbrs, bool isOptend, unsigned he) {
     
-    unsigned num_nbrs = 4;
-
     ThreadData<T> data = this->thread_data.pop();
     while (data.scratch.sector_scratch == nullptr) {
       this->thread_data.wait_for_push_notify();
@@ -1276,7 +1274,7 @@ namespace diskann {
 
 template<typename T>
   void PQFlashIndex<T>::load_small_graph(std::string& small_graph_path, 
-                     std::string& disk_file_path, uint32_t total_num_points,
+                     std::string& disk_index_file, uint32_t total_num_points,
                      uint32_t num_nbrs, std::string data_type, bool non_header) {
     small_graph =
         (unsigned*) malloc(total_num_points * num_nbrs * sizeof(unsigned));
