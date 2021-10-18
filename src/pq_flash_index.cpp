@@ -1333,7 +1333,7 @@ void PQFlashIndex<T>::load_bin_to_array(const std::string& file_path, uint32_t n
 }
 
 template<typename T>
-void PQFlashIndex<T>::write_array_to_binconst std::string& file_path, uint32_t nums,
+void PQFlashIndex<T>::write_array_to_bin(const std::string& file_path, uint32_t nums,
                      uint32_t dims, bool non_header) {
   std::ofstream file_writer(file_path.c_str(), std::ios::binary);
   if (!non_header) {
