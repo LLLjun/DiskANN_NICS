@@ -1274,7 +1274,7 @@ namespace diskann {
 
 template<typename T>
   void PQFlashIndex<T>::load_small_graph(const std::string& small_graph_path, 
-                     std::string& disk_index_file, uint32_t total_num_points,
+                     const std::string& disk_index_file, uint32_t total_num_points,
                      uint32_t num_nbrs, const std::string& data_type, bool non_header) {
     small_graph =
         (unsigned*) malloc(total_num_points * num_nbrs * sizeof(unsigned));
@@ -1313,7 +1313,7 @@ template<typename T>
 
 // iofile
 template<typename T>
-void PQFlashIndex<T>::load_bin_to_array(std::string& file_path, uint32_t nums,
+void PQFlashIndex<T>::load_bin_to_array(const std::string& file_path, uint32_t nums,
                     uint32_t dims, bool non_header) {
   std::ifstream file_reader(file_path.c_str(), std::ios::binary);
   if (!non_header) {
@@ -1333,7 +1333,7 @@ void PQFlashIndex<T>::load_bin_to_array(std::string& file_path, uint32_t nums,
 }
 
 template<typename T>
-void PQFlashIndex<T>::write_array_to_bin(std::string& file_path, uint32_t nums,
+void PQFlashIndex<T>::write_array_to_binconst std::string& file_path, uint32_t nums,
                      uint32_t dims, bool non_header) {
   std::ofstream file_writer(file_path.c_str(), std::ios::binary);
   if (!non_header) {

@@ -17,7 +17,7 @@ else()
 	set(CMAKE_CXX_COMPILER g++)
 endif()
 
-project(diskann)
+project(diskann_nics)
 include_directories(${PROJECT_SOURCE_DIR}/include ${PROJECT_SOURCE_DIR}/include/dll)
 
 #OpenMP
