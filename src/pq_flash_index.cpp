@@ -837,7 +837,7 @@ namespace diskann {
   template<typename T>
   void PQFlashIndex<T>::cached_beam_search(
       const T *query1, const _u64 k_search, const _u64 l_search, _u64 *indices,
-      float *distances, const _u64 beam_width, QueryStats *stats, bool isSmag, float thsd, bool isOptend, unsigned he) {
+      float *distances, const _u64 beam_width, QueryStats *stats, bool isSmag, float thsd, unsigned num_nbrs, bool isOptend, unsigned he) {
     
     unsigned num_nbrs = 4;
 
