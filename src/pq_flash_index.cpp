@@ -197,7 +197,6 @@ namespace diskann {
     }
 
     if (small_graph != nullptr) {
-      delete[] small_graph;
       free(small_graph);
     }
     delete this->dist_cmp;
