@@ -967,7 +967,7 @@ namespace diskann {
       auto nk = cur_list_size;
 
 #if OPTEND
-      if (OPTEND && (non_hop >= he))
+      if (isOptend && (non_hop >= he))
         break;
 #endif
 
