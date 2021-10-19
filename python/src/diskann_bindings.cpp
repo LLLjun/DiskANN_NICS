@@ -89,7 +89,7 @@ struct DiskANNIndex {
       std::cout << "Invalid choice of caching mechanism." << std::endl;
     }
     if (is_smag) {
-      const std::string small_graph_path = index_path_prefix + "_smag.bin";
+      const std::string small_graph_path = index_path + "_smag.bin";
       unsigned total_num_points = pq_flash_index->num_points;
       const std::string data_tp = data_type;
       pq_flash_index->load_small_graph(small_graph_path, index_path, total_num_points,
@@ -157,6 +157,10 @@ struct DiskANNIndex {
 
     return std::make_pair(ids, dists);
   }
+
+
+
+
 
   auto batch_search_numpy_input(
       py::array_t<T, py::array::c_style | py::array::forcecast> &queries,

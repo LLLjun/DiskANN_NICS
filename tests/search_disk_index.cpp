@@ -129,7 +129,6 @@ int search_disk_index(int argc, char** argv) {
   bool      isSmag = SMAG;
   float     thsd;
   unsigned  num_nbrs = LEN_SMAG;
-  unsigned* small_graph = nullptr;
   bool isOptend = OPTEND;
 
   // todo
