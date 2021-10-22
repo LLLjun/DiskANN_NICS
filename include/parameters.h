@@ -19,9 +19,9 @@ namespace diskann {
     template<typename ParamType>
     inline void Set(const std::string &name, const ParamType &value) {
       //      ParamType *ptr = (ParamType *) malloc(sizeof(ParamType));
-      if (params.find(name) != params.end()) {
-        free(params[name]);
-      }
+      // if (params.find(name) != params.end()) {
+      //   free(params[name]);
+      // }
       ParamType *ptr = new ParamType;
       *ptr = value;
       params[name] = (void *) ptr;
@@ -48,15 +48,15 @@ namespace diskann {
                          const ParamType &  default_value) {
       try {
         return Get<ParamType>(name);
-      } catch (std::invalid_argument e) {
+      } catch (std::invalid_argument& e) {
         return default_value;
       }
     }
 
     ~Parameters() {
       for (auto iter = params.begin(); iter != params.end(); iter++) {
-        if (iter->second != nullptr)
-          free(iter->second);
+        // if (iter->second != nullptr)
+        //   free(iter->second);
         // delete iter->second;
       }
     }
