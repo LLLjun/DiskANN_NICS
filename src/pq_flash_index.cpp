@@ -196,9 +196,6 @@ namespace diskann {
       diskann::aligned_free(coord_cache_buf);
     }
 
-    if (small_graph != nullptr) {
-      free(small_graph);
-    }
     delete this->dist_cmp;
     delete this->dist_cmp_float;
     if (load_flag) {
