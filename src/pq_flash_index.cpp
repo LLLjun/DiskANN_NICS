@@ -1167,12 +1167,13 @@ namespace diskann {
               Neighbor(frontier_nhood.first, cur_expanded_dist, true));
 
           node_nbrs = (node_buf + 1);
-        } else {
+        } 
+        /*else {
           nnbrs = num_nbrs;
-          // node_nbrs = &small_graph[frontier_nhood.first * num_nbrs];
-          //node_nbrs = small_graph + frontier_nhood.first * num_nbrs;
+           node_nbrs = &small_graph[frontier_nhood.first * num_nbrs];
+          node_nbrs = small_graph + frontier_nhood.first * num_nbrs;
           node_nbrs = 100;
-        }
+        }*/
         // compute node_nbrs <-> query dist in PQ space
         cpu_timer.reset();
         compute_dists(node_nbrs, nnbrs, dist_scratch);
