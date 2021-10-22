@@ -1270,7 +1270,6 @@ namespace diskann {
     }
   }
 
-
 template<typename T>
   void PQFlashIndex<T>::load_small_graph(const std::string& small_graph_path, 
                      const std::string& disk_index_file, uint32_t total_num_points,
@@ -1370,6 +1369,7 @@ void PQFlashIndex<T>::write_array_to_bin(const std::string& file_path, uint32_t 
       cur_bw = (cur_bw > 100) ? 100 : cur_bw;
       for (auto &x : distances)
         x = std::numeric_limits<float>::max();
+      cur_bw = 4;
       this->cached_beam_search(query1, l_search, l_search, indices.data(),
                                distances.data(), cur_bw, stats);
       for (_u32 i = 0; i < l_search; i++) {
