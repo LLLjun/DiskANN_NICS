@@ -175,7 +175,7 @@ int search_disk_index(int argc, char** argv) {
 
     const std::string small_graph_path = disk_index_file + "_smag.bin";
     // std::string small_graph_path = index_prefix_path + "_small_graph.bin";
-    _pFlashIndex->load_small_graph(small_graph_path, disk_index_file, total_num_points, num_nbrs, data_type);
+    //_pFlashIndex->load_small_graph(small_graph_path, disk_index_file, total_num_points, num_nbrs, data_type);
     printf("Load Small Graph from %s done.\n", disk_index_file.c_str());
   }
   // cache bfs levels
