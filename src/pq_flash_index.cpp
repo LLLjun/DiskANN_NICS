@@ -1131,8 +1131,8 @@ namespace diskann {
 #else
       for (auto &frontier_nhood : frontier_nhoods) {
 #endif
-        _u64      nnbrs;
-        unsigned *node_nbrs;
+        _u64      nnbrs = 0;
+        unsigned *node_nbrs = nullptr;
         if (isSmag) {
           compute_dists(&frontier_nhood.first, 1, dist_scratch);
         }
