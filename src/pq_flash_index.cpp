@@ -1170,7 +1170,7 @@ namespace diskann {
         } else {
           nnbrs = num_nbrs;
           // node_nbrs = &small_graph[frontier_nhood.first * num_nbrs];
-          node_nbrs = small_graph + frontier_nhood.first * num_nbrs;
+          //node_nbrs = small_graph + frontier_nhood.first * num_nbrs;
         }
         // compute node_nbrs <-> query dist in PQ space
         cpu_timer.reset();
@@ -1698,7 +1698,7 @@ namespace diskann {
       stats->total_us = (double) query_timer.elapsed();
     }
   }
-
+/*
 template<typename T>
   void PQFlashIndex<T>::load_small_graph(const std::string& small_graph_path, 
                      const std::string& disk_index_file, uint32_t total_num_points,
@@ -1737,7 +1737,8 @@ template<typename T>
     printf("Load Small Graph from %s done.\n", disk_index_file.c_str());  
 
   }
-
+*/
+/*
 // iofile
 template<typename T>
 void PQFlashIndex<T>::load_bin_to_array(const std::string& file_path, uint32_t nums,
@@ -1758,7 +1759,8 @@ void PQFlashIndex<T>::load_bin_to_array(const std::string& file_path, uint32_t n
   file_reader.close();
   printf("Load %u * %u data from %s done.\n", nums, dims, file_path.c_str());
 }
-
+*/
+/*
 template<typename T>
 void PQFlashIndex<T>::write_array_to_bin(const std::string& file_path, uint32_t nums,
                      uint32_t dims, bool non_header) {
@@ -1772,7 +1774,7 @@ void PQFlashIndex<T>::write_array_to_bin(const std::string& file_path, uint32_t 
   file_writer.close();
   printf("Write %u * %u data to %s done.\n", nums, dims, file_path.c_str());
 }
-
+*/
   // range search returns results of all neighbors within distance of range.
   // indices and distances need to be pre-allocated of size l_search and the
   // return value is the number of matching hits.

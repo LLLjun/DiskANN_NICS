@@ -88,6 +88,7 @@ struct DiskANNIndex {
     } else {
       std::cout << "Invalid choice of caching mechanism." << std::endl;
     }
+    /*
     if (is_smag) {
       const std::string small_graph_path = index_path + "_smag.bin";
       unsigned total_num_points = pq_flash_index->num_points;
@@ -95,6 +96,7 @@ struct DiskANNIndex {
       pq_flash_index->load_small_graph(small_graph_path, index_path, total_num_points,
                        num_nbrs, data_tp);
     }
+    */
     return 0;
   }
 

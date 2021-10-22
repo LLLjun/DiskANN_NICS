@@ -132,16 +132,16 @@ namespace diskann {
         unsigned &cur_cached_idx, tsl::robin_map<_u32, T *> &cur_data_cache_list, T *cur_data_cache_buf,
         tsl::robin_map<_u32, std::pair<_u32, _u32 *>> &cur_cached_list, unsigned *cur_cache_buf,
         QueryStats *stats = nullptr);
-
+    /*
     DISKANN_DLLEXPORT void load_small_graph(const std::string& file_path, const std::string& disk_file_path, uint32_t nums,
                      uint32_t dims, const std::string& data_type, bool non_header = false);
-
+    
     DISKANN_DLLEXPORT void write_array_to_bin(const std::string& file_path, uint32_t nums,
                      uint32_t dims, bool non_header = false);
 
     DISKANN_DLLEXPORT void load_bin_to_array(const std::string& file_path, uint32_t nums,
                      uint32_t dims, bool non_header = false);
-
+    */
     DISKANN_DLLEXPORT _u32 range_search(const T *query1, const double range,
                                      const _u64          min_l_search,
                                      const _u64          max_l_search,
@@ -214,7 +214,7 @@ namespace diskann {
     tsl::robin_map<_u32, std::pair<_u32, _u32 *>> nhood_cache;
 
     // small_graph
-    unsigned * small_graph = nullptr;
+    //unsigned * small_graph = nullptr;
 
     // coord_cache
     T *                       coord_cache_buf = nullptr;
