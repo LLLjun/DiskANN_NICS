@@ -1288,7 +1288,7 @@ namespace diskann {
                                            unsigned &cur_cached_idx,
                                            tsl::robin_map<_u32, T *> &cur_data_cache_list, T *cur_data_cache_buf,
                                            tsl::robin_map<_u32, std::pair<_u32, _u32 *>> &cur_cached_list, unsigned *cur_cache_buf,
-                                           QueryStats *stats) {
+                                           _u32 start_pt, QueryStats *stats) {
     ThreadData<T> data = this->thread_data.pop();
     while (data.scratch.sector_scratch == nullptr) {
       this->thread_data.wait_for_push_notify();
@@ -1368,13 +1368,18 @@ namespace diskann {
     _u32                        best_medoid = 0;
     float                       best_dist = (std::numeric_limits<float>::max)();
     std::vector<SimpleNeighbor> medoid_dists;
-    for (_u64 cur_m = 0; cur_m < num_medoids; cur_m++) {
-      float cur_expanded_dist = dist_cmp_float->compare(
-          query_float, centroid_data + aligned_dim * cur_m,
-          (unsigned) aligned_dim);
-      if (cur_expanded_dist < best_dist) {
-        best_medoid = medoids[cur_m];
-        best_dist = cur_expanded_dist;
+
+    if (start_pt != std::numeric_limits<_u32>::max()){
+      best_medoid = start_pt;
+    } else {
+      for (_u64 cur_m = 0; cur_m < num_medoids; cur_m++) {
+        float cur_expanded_dist = dist_cmp_float->compare(
+            query_float, centroid_data + aligned_dim * cur_m,
+            (unsigned) aligned_dim);
+        if (cur_expanded_dist < best_dist) {
+          best_medoid = medoids[cur_m];
+          best_dist = cur_expanded_dist;
+        }
       }
     }
 
@@ -1814,6 +1819,7 @@ void PQFlashIndex<T>::write_array_to_bin(const std::string& file_path, uint32_t 
     memset(cur_cache_buf, 0, cur_cached_max_size * max_degree * sizeof(unsigned));
 
     unsigned cur_cached_idx = 0;
+    _u32 start_pt = std::numeric_limits<_u32>::max();
 #endif
 
     _u32 l_search = min_l_search;  // starting size of the candidate list
@@ -1829,7 +1835,10 @@ void PQFlashIndex<T>::write_array_to_bin(const std::string& file_path, uint32_t 
       this->cached_beam_search_iter(query1, l_search, l_search, indices.data(),
                                     distances.data(), cur_bw, cur_cached_idx, 
                                     cur_data_cache_list, cur_data_cache_buf,
-                                    cur_cached_list, cur_cache_buf, stats);
+                                    cur_cached_list, cur_cache_buf, start_pt, stats);
+      if (distances[0] < (float) range){
+        start_pt = indices[0];
+      }
 #else
       this->cached_beam_search(query1, l_search, l_search, indices.data(),
                                distances.data(), cur_bw, stats);
