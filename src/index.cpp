@@ -760,6 +760,7 @@ namespace diskann {
     Lvec.push_back(L);
     Lvec.push_back(L);
     const unsigned NUM_RNDS = 2;
+    std::cout<<"05"<<std::endl;
 
     // Max degree of graph
     // Pruning parameter
@@ -775,6 +776,7 @@ namespace diskann {
 
     for (unsigned i = 0; i < (unsigned) _num_frozen_pts; ++i)
       visit_order.emplace_back((unsigned) (_max_points + i));
+    std::cout<<"06"<<std::endl;
 
     // if there are frozen points, the first such one is set to be the _ep
     if (_num_frozen_pts > 0)
@@ -792,6 +794,7 @@ namespace diskann {
     for (uint64_t p = 0; p < _max_points + _num_frozen_pts; p++) {
       _final_graph[p].reserve((size_t)(std::ceil(range * SLACK_FACTOR * 1.05)));
     }
+    std::cout<<"07"<<std::endl;
 
     std::random_device               rd;
     std::mt19937                     gen(rd());
@@ -805,7 +808,7 @@ namespace diskann {
     std::vector<unsigned> init_ids;
     for (auto pt : unique_start_points)
       init_ids.emplace_back(pt);
-    std::cout<<"05"<<std::endl;
+    std::cout<<"08"<<std::endl;
 
     diskann::Timer link_timer;
     for (uint32_t rnd_no = 0; rnd_no < NUM_RNDS; rnd_no++) {
