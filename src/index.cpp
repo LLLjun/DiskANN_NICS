@@ -766,6 +766,7 @@ namespace diskann {
     // Pruning parameter
     // Set alpha=1 for the first pass; use specified alpha for last pass
     parameters.Set<float>("alpha", 1);
+    std::cout<<"06"<<std::endl;
 
     /* visit_order is a vector that is initialized to the entire graph */
     std::vector<unsigned> visit_order;
@@ -773,6 +774,7 @@ namespace diskann {
     for (unsigned i = 0; i < (unsigned) _nd; i++) {
       visit_order.emplace_back(i);
     }
+    std::cout<<"07"<<std::endl;
 
     for (unsigned i = 0; i < (unsigned) _num_frozen_pts; ++i)
       visit_order.emplace_back((unsigned) (_max_points + i));
