@@ -739,9 +739,11 @@ namespace diskann {
     unsigned NUM_THREADS = parameters.Get<unsigned>("num_threads");
     if (NUM_THREADS != 0)
       omp_set_num_threads(NUM_THREADS);
+    std::cout<<"2.5"<<std::endl;
 
     uint32_t NUM_SYNCS =
         (unsigned) DIV_ROUND_UP(_nd + _num_frozen_pts, (64 * 64));
+    std::cout<<"3"<<std::endl;
     if (NUM_SYNCS < 40)
       NUM_SYNCS = 40;
     diskann::cout << "Number of syncs: " << NUM_SYNCS << std::endl;
@@ -760,6 +762,7 @@ namespace diskann {
     Lvec.push_back(L);
     Lvec.push_back(L);
     const unsigned NUM_RNDS = 2;
+    std::cout<<"4"<<std::endl;
 
     // Max degree of graph
     // Pruning parameter
@@ -990,16 +993,20 @@ namespace diskann {
   template<typename T, typename TagT>
   void Index<T, TagT>::build(Parameters &             parameters,
                              const std::vector<TagT> &tags) {
+
     if (_enable_tags) {
       if (tags.size() != _nd) {
         std::cerr << "#Tags should be equal to #points" << std::endl;
         throw diskann::ANNException("#Tags must be equal to #points", -1,
                                     __FUNCSIG__, __FILE__, __LINE__);
       }
+      std::cout<<"1"<<std::endl;
+      std::cout<<"tag size: "<<tags.size()<<std::endl;
       for (size_t i = 0; i < tags.size(); ++i) {
         _tag_to_location[tags[i]] = (unsigned) i;
         _location_to_tag[(unsigned) i] = tags[i];
       }
+      std::cout<<"2"<<std::endl;
     }
     diskann::cout << "Starting index build..." << std::endl;
     link(parameters);  // Primary func for creating graph
