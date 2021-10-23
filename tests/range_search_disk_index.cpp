@@ -218,7 +218,8 @@ int search_disk_index(int argc, char** argv) {
   std::vector<std::vector<std::vector<uint32_t>>> query_result_ids(Lvec.size());
 
   uint32_t optimized_beamwidth = 2;
-  uint32_t max_list_size = 10000;
+  // uint32_t max_list_size = 10000;
+  uint32_t max_list_size = 20000;
 
   for (uint32_t test_id = 0; test_id < Lvec.size(); test_id++) {
     _u64 L = Lvec[test_id];

@@ -30,9 +30,10 @@
 #define LEN_SMAG 4
 // #define TEST_FILE
 
-#define CURCACHE true
+#define CURCACHE false
 #define RANGE_RAM_GB 1
 #define RANGE_CACHED_SIZE 10000
+#define RESTART true
 
 namespace diskann {
   template<typename T>
@@ -129,9 +130,14 @@ namespace diskann {
     DISKANN_DLLEXPORT void cached_beam_search_iter(
         const T *query, const _u64 k_search, const _u64 l_search, _u64 *res_ids,
         float *res_dists, const _u64 beam_width, 
+#if CURCACHE
         unsigned &cur_cached_idx, tsl::robin_map<_u32, T *> &cur_data_cache_list, T *cur_data_cache_buf,
         tsl::robin_map<_u32, std::pair<_u32, _u32 *>> &cur_cached_list, unsigned *cur_cache_buf,
-        _u32 start_pt, QueryStats *stats = nullptr);
+#endif
+#if RESTART
+        _u32 start_pt, 
+#endif
+        QueryStats *stats = nullptr);
     /*
     DISKANN_DLLEXPORT void load_small_graph(const std::string& file_path, const std::string& disk_file_path, uint32_t nums,
                      uint32_t dims, const std::string& data_type, bool non_header = false);

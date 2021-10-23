@@ -1285,10 +1285,15 @@ namespace diskann {
                                            const _u64 l_search, _u64 *indices,
                                            float *     distances,
                                            const _u64  beam_width,
+#if CURCACHE
                                            unsigned &cur_cached_idx,
                                            tsl::robin_map<_u32, T *> &cur_data_cache_list, T *cur_data_cache_buf,
                                            tsl::robin_map<_u32, std::pair<_u32, _u32 *>> &cur_cached_list, unsigned *cur_cache_buf,
-                                           _u32 start_pt, QueryStats *stats) {
+#endif
+#if RESTART
+                                           _u32 start_pt, 
+#endif
+                                           QueryStats *stats) {
     ThreadData<T> data = this->thread_data.pop();
     while (data.scratch.sector_scratch == nullptr) {
       this->thread_data.wait_for_push_notify();
@@ -1426,8 +1431,9 @@ namespace diskann {
         if (retset[marker].flag) {
           num_seen++;
           auto iter = nhood_cache.find(retset[marker].id);
+#if CURCACHE
           auto iter1 = cur_cached_list.find(retset[marker].id);
-
+#endif
           if (iter != nhood_cache.end()) {
             cached_nhoods.push_back(
                 std::make_pair(retset[marker].id, iter->second));
@@ -1435,6 +1441,7 @@ namespace diskann {
               stats->n_cache_hits++;
             }
           } 
+#if CURCACHE
           else if (iter1 != cur_cached_list.end()){
             cached_nhoods.push_back(
                 std::make_pair(retset[marker].id, iter1->second));
@@ -1442,6 +1449,7 @@ namespace diskann {
               stats->n_cache_hits++;
             }
           }
+#endif
           else {
             frontier.push_back(retset[marker].id);
           }
@@ -1489,6 +1497,7 @@ namespace diskann {
       // process cached nhoods
       for (auto &cached_nhood : cached_nhoods) {
         auto  global_cache_iter = coord_cache.find(cached_nhood.first);
+#if CURCACHE
         if (global_cache_iter == coord_cache.end()){
           global_cache_iter = cur_data_cache_list.find(cached_nhood.first);
           if (global_cache_iter == cur_data_cache_list.end()){
@@ -1496,6 +1505,7 @@ namespace diskann {
             exit(1);
           }
         }
+#endif
         T *   node_fp_coords_copy = global_cache_iter->second;
         float cur_expanded_dist;
         if (!use_disk_index_pq) {
@@ -1596,7 +1606,7 @@ namespace diskann {
             Neighbor(frontier_nhood.first, cur_expanded_dist, true));
 
         unsigned *node_nbrs = (node_buf + 1);
-
+#if CURCACHE
         // add node to cache
         if (cur_cached_idx < cur_cached_max_size){
           T *   cur_coords = cur_data_cache_buf + data_dim * sizeof(T) * cur_cached_idx;
@@ -1605,13 +1615,13 @@ namespace diskann {
 
           std::pair<_u32, unsigned *> cnhood;
           cnhood.first = nnbrs;
-          cnhood.second = cur_cache_buf + max_degree * cur_cached_idx;
+          cnhood.second = cur_cache_buf + max_degree * sizeof(unsigned) * cur_cached_idx;
           memcpy(cnhood.second, node_nbrs, nnbrs * sizeof(unsigned));
           cur_cached_list.insert(std::make_pair(frontier_nhood.first, cnhood));
 
           cur_cached_idx++;
         }
-
+#endif
         // compute node_nbrs <-> query dist in PQ space
         cpu_timer.reset();
         compute_dists(node_nbrs, nnbrs, dist_scratch);
@@ -1819,6 +1829,9 @@ void PQFlashIndex<T>::write_array_to_bin(const std::string& file_path, uint32_t 
     memset(cur_cache_buf, 0, cur_cached_max_size * max_degree * sizeof(unsigned));
 
     unsigned cur_cached_idx = 0;
+    
+#endif
+#if RESTART
     _u32 start_pt = std::numeric_limits<_u32>::max();
 #endif
 
@@ -1831,18 +1844,27 @@ void PQFlashIndex<T>::write_array_to_bin(const std::string& file_path, uint32_t 
       cur_bw = (cur_bw > 100) ? 100 : cur_bw;
       for (auto &x : distances)
         x = std::numeric_limits<float>::max();
-#if CURCACHE
+// #if CURCACHE
       this->cached_beam_search_iter(query1, l_search, l_search, indices.data(),
-                                    distances.data(), cur_bw, cur_cached_idx, 
+                                    distances.data(), cur_bw, 
+#if CURCACHE
+                                    cur_cached_idx, 
                                     cur_data_cache_list, cur_data_cache_buf,
-                                    cur_cached_list, cur_cache_buf, start_pt, stats);
+                                    cur_cached_list, cur_cache_buf, 
+#endif
+#if RESTART
+                                    start_pt, 
+#endif
+                                    stats);
+#if RESTART
       if (distances[0] < (float) range){
         start_pt = indices[0];
       }
-#else
-      this->cached_beam_search(query1, l_search, l_search, indices.data(),
-                               distances.data(), cur_bw, stats);
 #endif
+// #else
+//       this->cached_beam_search(query1, l_search, l_search, indices.data(),
+//                                distances.data(), cur_bw, stats);
+// #endif
       for (_u32 i = 0; i < l_search; i++) {
         if (distances[i] > (float) range) {
           res_count = i;
