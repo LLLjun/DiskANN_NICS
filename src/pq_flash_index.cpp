@@ -249,7 +249,7 @@ namespace diskann {
         data.ctx = ctx;
         data.scratch = scratch;
         this->thread_data.push(data);
-#if CURCACHE
+#if (CURCACHE || COMPCACHE)
         thread_mem_table.insert(std::make_pair(std::this_thread::get_id(), (unsigned) thread));
 #endif
       }
@@ -743,7 +743,18 @@ namespace diskann {
     cur_cached_max_size = cur_cached_max_size > RANGE_CACHED_SIZE ? RANGE_CACHED_SIZE: cur_cached_max_size;
     cur_total_data_cache_buf = new T[cur_cached_max_size * data_dim * num_threads];
     cur_total_cache_buf = new unsigned[cur_cached_max_size * max_degree * num_threads];
-    printf("For range search, cur cached max size: %lu \n", cur_cached_max_size);
+    cur_total_data_cache_list.resize(num_threads);
+    cur_total_cached_list.resize(num_threads);
+    printf("For range search, cur cached max size: %lu, use ram: %.2f GB \n", cur_cached_max_size, 
+            (1.0 * num_threads * cur_cached_max_size * (data_dim * sizeof(T) + max_degree * sizeof(unsigned)) / 1024 / 1024 / 1024));
+#endif
+#if COMPCACHE
+    cur_comp_cached_max_size = std::floor(RANGE_COMP_RAM_GB * 1024 * 1024 * 1024 / max_degree / sizeof(float) / num_threads);
+    cur_comp_cached_max_size = cur_comp_cached_max_size > RANGE_COMP_CACHED_SIZE ? RANGE_COMP_CACHED_SIZE: cur_comp_cached_max_size;
+    comp_total_cache_buf = new float[cur_comp_cached_max_size * max_degree * num_threads];
+    comp_total_cached_list.resize(num_threads);
+    printf("For range search, comp cached max size: %lu, use ram: %.2f GB \n", cur_comp_cached_max_size,
+            (1.0 * num_threads * cur_comp_cached_max_size * max_degree * sizeof(float) / 1024 / 1024 / 1024));
 #endif
 
 #ifdef EXEC_ENV_OLS
@@ -1290,6 +1301,10 @@ namespace diskann {
                                            tsl::robin_map<_u32, T *> &cur_data_cache_list, T *cur_data_cache_buf,
                                            tsl::robin_map<_u32, std::pair<_u32, _u32 *>> &cur_cached_list, unsigned *cur_cache_buf,
 #endif
+#if COMPCACHE
+                                           unsigned &comp_cached_idx,
+                                           tsl::robin_map<_u32, float *> &comp_dist_cached_list, float *comp_dist_cache_buf,
+#endif
 #if RESTART
                                            _u32 start_pt, 
 #endif
@@ -1538,7 +1553,23 @@ namespace diskann {
 
         // compute node_nbrs <-> query dists in PQ space
         cpu_timer.reset();
+#if COMPCACHE
+        auto comp_cache_iter = comp_dist_cached_list.find(cached_nhood.first);
+        if (comp_cache_iter != comp_dist_cached_list.end()){
+          dist_scratch = comp_cache_iter->second;
+        } else {
+          compute_dists(node_nbrs, nnbrs, dist_scratch);
+          if (comp_cached_idx < cur_comp_cached_max_size){
+            float * cd_buf = comp_dist_cache_buf + max_degree * comp_cached_idx;
+            // 256 todo
+            memcpy(cd_buf, dist_scratch, max_degree * sizeof(float));
+            comp_dist_cached_list.insert(std::make_pair(cached_nhood.first, cd_buf));
+            comp_cached_idx++;
+          }
+        }
+#else
         compute_dists(node_nbrs, nnbrs, dist_scratch);
+#endif
         if (stats != nullptr) {
           stats->n_cmps += nnbrs;
           stats->cpu_us += cpu_timer.elapsed();
@@ -1620,13 +1651,13 @@ namespace diskann {
 #if CURCACHE
         // add node to cache
         if (cur_cached_idx < cur_cached_max_size){
-          T *   cur_coords = cur_data_cache_buf + data_dim * sizeof(T) * cur_cached_idx;
+          T *   cur_coords = cur_data_cache_buf + data_dim * cur_cached_idx;
           memcpy(cur_coords, node_fp_coords_copy, data_dim * sizeof(T));
           cur_data_cache_list.insert(std::make_pair(frontier_nhood.first, cur_coords));
 
           std::pair<_u32, unsigned *> cnhood;
           cnhood.first = nnbrs;
-          cnhood.second = cur_cache_buf + max_degree * sizeof(unsigned) * cur_cached_idx;
+          cnhood.second = cur_cache_buf + max_degree * cur_cached_idx;
           memcpy(cnhood.second, node_nbrs, nnbrs * sizeof(unsigned));
           cur_cached_list.insert(std::make_pair(frontier_nhood.first, cnhood));
 
@@ -1635,7 +1666,23 @@ namespace diskann {
 #endif
         // compute node_nbrs <-> query dist in PQ space
         cpu_timer.reset();
+#if COMPCACHE
+        auto comp_cache_iter = comp_dist_cached_list.find(frontier_nhood.first);
+        if (comp_cache_iter != comp_dist_cached_list.end()){
+          dist_scratch = comp_cache_iter->second;
+        } else {
+          compute_dists(node_nbrs, nnbrs, dist_scratch);
+          if (comp_cached_idx < cur_comp_cached_max_size){
+            float * cd_buf = comp_dist_cache_buf + max_degree * comp_cached_idx;
+            // 256 todo
+            memcpy(cd_buf, dist_scratch, max_degree * sizeof(float));
+            comp_dist_cached_list.insert(std::make_pair(frontier_nhood.first, cd_buf));
+            comp_cached_idx++;
+          }
+        }
+#else
         compute_dists(node_nbrs, nnbrs, dist_scratch);
+#endif
         if (stats != nullptr) {
           stats->n_cmps += nnbrs;
           stats->cpu_us += cpu_timer.elapsed();
@@ -1674,7 +1721,7 @@ namespace diskann {
         }
 
         if (stats != nullptr) {
-          stats->cpu_us += cpu_timer.elapsed();
+          // stats->cpu_us += cpu_timer.elapsed();
         }
       }
 
@@ -1819,7 +1866,7 @@ void PQFlashIndex<T>::write_array_to_bin(const std::string& file_path, uint32_t 
 
     bool stop_flag = false;
 
-#if CURCACHE
+#if (CURCACHE || COMPCACHE)
     // record some point
     unsigned cur_thread;
     auto this_thrid = std::this_thread::get_id();
@@ -1830,17 +1877,20 @@ void PQFlashIndex<T>::write_array_to_bin(const std::string& file_path, uint32_t 
       printf("Error, private thread allo failed\n");
       exit(1);
     }
-
+#endif
+#if CURCACHE
     T * cur_data_cache_buf = cur_total_data_cache_buf + cur_thread * cur_cached_max_size * data_dim;
     unsigned * cur_cache_buf = cur_total_cache_buf + cur_thread * cur_cached_max_size * max_degree;
-
-    tsl::robin_map<_u32, T *> cur_data_cache_list;
-    memset(cur_data_cache_buf, 0, cur_cached_max_size * data_dim * sizeof(T));
-    tsl::robin_map<_u32, std::pair<_u32, _u32 *>> cur_cached_list;
-    memset(cur_cache_buf, 0, cur_cached_max_size * max_degree * sizeof(unsigned));
+    cur_total_data_cache_list[cur_thread].clear();
+    cur_total_cached_list[cur_thread].clear();
 
     unsigned cur_cached_idx = 0;
-    
+#endif
+#if COMPCACHE
+    float * comp_dist_cache_buf = comp_total_cache_buf + cur_thread * cur_comp_cached_max_size * max_degree;
+    comp_total_cached_list[cur_thread].clear();
+
+    unsigned comp_cached_idx = 0;
 #endif
 #if RESTART
     _u32 start_pt = std::numeric_limits<_u32>::max();
@@ -1860,8 +1910,12 @@ void PQFlashIndex<T>::write_array_to_bin(const std::string& file_path, uint32_t 
                                     distances.data(), cur_bw, 
 #if CURCACHE
                                     cur_cached_idx, 
-                                    cur_data_cache_list, cur_data_cache_buf,
-                                    cur_cached_list, cur_cache_buf, 
+                                    cur_total_data_cache_list[cur_thread], cur_data_cache_buf,
+                                    cur_total_cached_list[cur_thread], cur_cache_buf, 
+#endif
+#if COMPCACHE
+                                    comp_cached_idx, 
+                                    comp_total_cached_list[cur_thread], comp_dist_cache_buf,
 #endif
 #if RESTART
                                     start_pt, 

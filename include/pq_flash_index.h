@@ -30,10 +30,13 @@
 #define LEN_SMAG 4
 // #define TEST_FILE
 
-#define CURCACHE false
-#define RANGE_RAM_GB 1
-#define RANGE_CACHED_SIZE 10000
 #define RESTART true
+#define CURCACHE true
+#define RANGE_RAM_GB 0.7
+#define RANGE_CACHED_SIZE 10000
+#define COMPCACHE true
+#define RANGE_COMP_RAM_GB 0.7
+#define RANGE_COMP_CACHED_SIZE 10000
 
 namespace diskann {
   template<typename T>
@@ -134,6 +137,10 @@ namespace diskann {
         unsigned &cur_cached_idx, tsl::robin_map<_u32, T *> &cur_data_cache_list, T *cur_data_cache_buf,
         tsl::robin_map<_u32, std::pair<_u32, _u32 *>> &cur_cached_list, unsigned *cur_cache_buf,
 #endif
+#if COMPCACHE
+        unsigned &comp_cached_idx,
+        tsl::robin_map<_u32, float *> &comp_dist_cached_list, float *comp_dist_cache_buf,
+#endif
 #if RESTART
         _u32 start_pt, 
 #endif
@@ -233,11 +240,18 @@ namespace diskann {
     bool                           count_visited_nodes = false;
 
 #if CURCACHE
-    tsl::robin_map<std::thread::id, unsigned> thread_mem_table;
     T * cur_total_data_cache_buf = nullptr;
     unsigned * cur_total_cache_buf = nullptr;
+    std::vector<tsl::robin_map<_u32, T *>> cur_total_data_cache_list;
+    std::vector<tsl::robin_map<_u32, std::pair<_u32, _u32 *>>> cur_total_cached_list;
 #endif
+#if COMPCACHE
+    float * comp_total_cache_buf = nullptr;
+    std::vector<tsl::robin_map<_u32, float *>> comp_total_cached_list;
+#endif
+    tsl::robin_map<std::thread::id, unsigned> thread_mem_table;
     uint64_t   cur_cached_max_size;
+    uint64_t   cur_comp_cached_max_size;
 
 #ifdef EXEC_ENV_OLS
     // Set to a larger value than the actual header to accommodate
