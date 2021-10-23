@@ -1374,6 +1374,7 @@ namespace diskann {
     float                       best_dist = (std::numeric_limits<float>::max)();
     std::vector<SimpleNeighbor> medoid_dists;
 
+#if RESTART
     if (start_pt != std::numeric_limits<_u32>::max()){
       best_medoid = start_pt;
     } else {
@@ -1387,7 +1388,17 @@ namespace diskann {
         }
       }
     }
-
+#else
+    for (_u64 cur_m = 0; cur_m < num_medoids; cur_m++) {
+      float cur_expanded_dist = dist_cmp_float->compare(
+          query_float, centroid_data + aligned_dim * cur_m,
+          (unsigned) aligned_dim);
+      if (cur_expanded_dist < best_dist) {
+        best_medoid = medoids[cur_m];
+        best_dist = cur_expanded_dist;
+      }
+    }
+#endif
     compute_dists(&best_medoid, 1, dist_scratch);
 
     retset[0].id = best_medoid;
