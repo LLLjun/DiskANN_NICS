@@ -203,6 +203,16 @@ namespace diskann {
       reader->close();
       // delete reader; //not deleting reader because it is now passed by ref.
     }
+#if CURCACHE
+    if (cur_total_data_cache_buf != nullptr)
+      delete[] cur_total_data_cache_buf;
+    if (cur_total_cache_buf != nullptr)
+      delete[] cur_total_cache_buf;
+#endif
+#if COMPCACHE
+    if (comp_total_cache_buf != nullptr)
+      delete[] comp_total_cache_buf;
+#endif
   }
 
   template<typename T>
