@@ -33,10 +33,10 @@
 #define RESTART true
 #define CURCACHE true
 #define RANGE_RAM_GB 0.7
-#define RANGE_CACHED_SIZE 10000
+#define RANGE_CACHED_SIZE 1000
 #define COMPCACHE true
 #define RANGE_COMP_RAM_GB 0.7
-#define RANGE_COMP_CACHED_SIZE 10000
+#define RANGE_COMP_CACHED_SIZE 1000
 
 namespace diskann {
   template<typename T>
